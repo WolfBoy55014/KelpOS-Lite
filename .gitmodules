@@ -1,0 +1,3 @@
+[submodule "kernel"]
+	path = kernel
+	url = https://github.com/WolfBoy55014/RP2040-Scheduler.git
