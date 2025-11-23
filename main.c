@@ -11,8 +11,8 @@ void test_task(const uint32_t pid) {
     volatile uint32_t iterations = 0;
     volatile uint32_t result = 1;
 
-    for (int d = 0; d < 1000000; d += 15000) {
-        for (int u = 0; u < 20; ++u) {
+    for (int d = 0; d < 1000000; d += 20000) {
+        for (int u = 0; u < 40; ++u) {
             uint64_t start = time_us_64();
 
             // Do some actual computation (not optimized away)
@@ -34,8 +34,11 @@ void test_task(const uint32_t pid) {
 int main() {
     stdio_init_all();
 
-    task_add(kelp_governor, 8, 127);
+    kelp_governor_set_power_mode(GOVERNOR_POWER_SAVE);
+
+    task_add(kelp_governor, 8, 128);
     task_add(test_task, 9, 127);
+    task_add(test_task, 10, 127);
 
     kernel_start();
 

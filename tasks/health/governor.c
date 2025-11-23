@@ -17,6 +17,9 @@
 const uint32_t governor_frequencies[] = GOVERNOR_FREQUENCIES;
 const enum vreg_voltage governor_voltages[] = GOVERNOR_VOLTAGES;
 
+enum kelp_governor_power_mode current_power_mode = GOVERNOR_BALANCED;
+uint8_t target_utilization = GOVERNOR_TARGET_BALANCED;
+
 void kelp_governor(const uint32_t pid) {
     uint32_t current_freq = GOVERNOR_DEFAULT_FREQ;
 
@@ -33,12 +36,12 @@ void kelp_governor(const uint32_t pid) {
 
         printf(">core_usage: %u\r\n", core_usage);
 
-        if (core_usage > GOVERNOR_TARGET_UTILIZATION + 3) {
+        if (core_usage > target_utilization + GOVERNOR_TARGET_TOLERANCE) {
             if (new_freq < 9) {
                 new_freq++;
             }
         }
-        else if (core_usage < GOVERNOR_TARGET_UTILIZATION - 3) {
+        else if (core_usage < target_utilization - GOVERNOR_TARGET_TOLERANCE) {
             if (new_freq > 0) {
                 new_freq--;
             }
@@ -47,7 +50,7 @@ void kelp_governor(const uint32_t pid) {
         if (new_freq != current_freq) {
             enum vreg_voltage target_voltage = governor_voltages[new_freq];
 
-            // Increase voltage BEFORE increasing frequency
+            // increase voltage before increasing frequency
             if (new_freq > current_freq) {
                 vreg_set_voltage(target_voltage);
                 busy_wait_us(100);  // Let voltage stabilize
@@ -56,7 +59,7 @@ void kelp_governor(const uint32_t pid) {
             if (set_sys_clock_khz(governor_frequencies[new_freq], false)) {
                 vreg_set_voltage(governor_voltages[new_freq]);
 
-                // Decrease voltage AFTER decreasing frequency
+                // decrease voltage after decreasing frequency
                 if (new_freq < current_freq) {
                     vreg_set_voltage(target_voltage);
                 }
@@ -72,4 +75,27 @@ void kelp_governor(const uint32_t pid) {
         printf(">clock_speed: %lu\r\n", current_freq);
         task_sleep_ms(1000);
     }
+}
+
+void kelp_governor_set_power_mode(const enum kelp_governor_power_mode power_mode) {
+    current_power_mode = power_mode;
+
+    switch (power_mode) {
+    case (GOVERNOR_PERFORMANCE):
+        target_utilization = GOVERNOR_TARGET_PERFORMANCE;
+        break;
+    case (GOVERNOR_BALANCED):
+        target_utilization = GOVERNOR_TARGET_BALANCED;
+        break;
+    case (GOVERNOR_POWER_SAVE):
+        target_utilization = GOVERNOR_TARGET_POWER_SAVE;
+        break;
+    default:
+        target_utilization = GOVERNOR_TARGET_BALANCED;
+        break;
+    }
+}
+
+enum kelp_governor_power_mode kelp_governor_get_power_mode() {
+    return current_power_mode;
 }
