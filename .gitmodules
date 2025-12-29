@@ -1,3 +1,6 @@
 [submodule "kernel"]
 	path = kernel
 	url = https://github.com/WolfBoy55014/RP2040-Scheduler.git
+[submodule "tasks/shell/microshell"]
+	path = tasks/shell/microshell
+	url = https://github.com/marcinbor85/microshell.git

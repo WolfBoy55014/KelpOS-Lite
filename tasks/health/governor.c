@@ -1,5 +1,5 @@
 //
-// Created by WolfBoy55014 on 11/20/2025.
+// Created by wolfboy on 11/20/2025.
 //
 
 #include <stdio.h>
@@ -34,7 +34,7 @@ void kelp_governor(const uint32_t pid) {
         }
         core_usage /= CORE_COUNT;
 
-        printf(">core_usage: %u\r\n", core_usage);
+        // printf(">core_usage: %u\r\n", core_usage);
 
         if (core_usage > target_utilization + GOVERNOR_TARGET_TOLERANCE) {
             if (new_freq < 9) {
@@ -72,7 +72,7 @@ void kelp_governor(const uint32_t pid) {
                 printf("Successfully set system clock frequency to %lu\n", governor_frequencies[current_freq]);
             }
         }
-        printf(">clock_speed: %lu\r\n", current_freq);
+        // printf(">clock_speed: %lu\r\n", current_freq);
         task_sleep_ms(1000);
     }
 }
