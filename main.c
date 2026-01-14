@@ -108,8 +108,8 @@ void monitor_task(uint32_t pid) {
 }
 
 void task_tx(uint32_t pid) {
-    int64_t value = -4642831095572139008;
-    uint16_t reason = 8;
+    double value = -3.14159265358979323846;
+    uint16_t reason = 912;
     uint32_t rx_task_pid = pid + 1;
 
     while (!task_exists(rx_task_pid)) {
@@ -118,9 +118,11 @@ void task_tx(uint32_t pid) {
 
     task_sleep_ms(2000);
 
+    printf("Value: %.20f\n", value);
+
     uint16_t channel_id = com_channel_request(rx_task_pid);
 
-    com_send_int64(channel_id, value, reason);
+    com_send_double(channel_id, value, reason);
 
     while (!is_channel_ready_to_write(channel_id)) {
         task_yield();
@@ -145,12 +147,12 @@ void task_rx(uint32_t pid) {
         for (int i = 0; i < num_connected; ++i) {
 
             if (is_channel_ready_to_read(channel_ids[i])) {
-                int64_t value;
+                double value;
                 uint16_t reason;
 
-                com_get_int64(channel_ids[i], &value, &reason);
+                com_get_double(channel_ids[i], &value, &reason);
 
-                printf("Value: %lld, Reason: %u\n", value, reason);
+                printf("Value: %.20f, Reason: %u\n", value, reason);
             }
         }
 

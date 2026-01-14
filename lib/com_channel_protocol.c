@@ -34,9 +34,9 @@ int8_t com_get_uint32(const uint16_t channel_id, uint32_t* data, uint16_t* reaso
         return -3; // channel empty
     }
 
-    uint8_t bytes[9];
+    uint8_t bytes[7];
 
-    com_channel_read(channel_id, bytes, 9);
+    com_channel_read(channel_id, bytes, 7);
 
     if (bytes[0] != COM_TYPE_UINT32) {
         return -4; // wrong data type
@@ -76,9 +76,9 @@ int8_t com_get_int32(const uint16_t channel_id, int32_t* data, uint16_t* reason)
         return -3; // channel empty
     }
 
-    uint8_t bytes[9];
+    uint8_t bytes[7];
 
-    com_channel_read(channel_id, bytes, 9);
+    com_channel_read(channel_id, bytes, 7);
 
     if (bytes[0] != COM_TYPE_INT32) {
         return -4; // wrong data type
@@ -196,6 +196,147 @@ int8_t com_get_int64(const uint16_t channel_id, int64_t* data, uint16_t* reason)
         (uint64_t)bytes[10];
 
     *data = data_int64;
+
+    *reason = bytes[1] << 8 | bytes[2];
+
+    return 0;
+}
+
+int8_t com_send_float(const uint16_t channel_id, const float data, const uint16_t reason) {
+
+    if (!is_channel_ready_to_write(channel_id)) {
+        return -3; // current contents have not been read
+    }
+
+    union {
+        float f;
+        uint8_t b[4]; // shares the same memory space as f
+    } d;
+
+    d.f = data;
+
+    uint8_t bytes[7];
+
+    bytes[0] = COM_TYPE_FLO;
+    bytes[1] = reason >> 8;
+    bytes[2] = reason;
+    bytes[3] = d.b[0];
+    bytes[4] = d.b[1];
+    bytes[5] = d.b[2];
+    bytes[6] = d.b[3];
+
+    // TODO Handle non-zero return
+    return com_channel_write(channel_id, bytes, 7);
+}
+
+int8_t com_get_float(const uint16_t channel_id, float* data, uint16_t* reason) {
+
+    if (!is_channel_ready_to_read(channel_id)) {
+        return -3; // channel empty
+    }
+
+    uint8_t bytes[7];
+
+    com_channel_read(channel_id, bytes, 7);
+
+    if (bytes[0] != COM_TYPE_FLO) {
+        return -4; // wrong data type
+    }
+
+    memcpy(data, bytes + 3, 4);
+    // WARNING: dependent on endianness of system
+
+    *reason = bytes[1] << 8 | bytes[2];
+
+    return 0;
+}
+
+int8_t com_send_double(const uint16_t channel_id, const double data, const uint16_t reason) {
+
+    if (!is_channel_ready_to_write(channel_id)) {
+        return -3; // current contents have not been read
+    }
+
+    union {
+        double f;
+        uint8_t b[8]; // shares the same memory space as f
+    } d;
+
+    d.f = data;
+
+    uint8_t bytes[11];
+
+    bytes[0] = COM_TYPE_DUB;
+    bytes[1] = reason >> 8;
+    bytes[2] = reason;
+    bytes[3] = d.b[0];
+    bytes[4] = d.b[1];
+    bytes[5] = d.b[2];
+    bytes[6] = d.b[3];
+    bytes[7] = d.b[4];
+    bytes[8] = d.b[5];
+    bytes[9] = d.b[6];
+    bytes[10] = d.b[7];
+
+    // TODO Handle non-zero return
+    return com_channel_write(channel_id, bytes, 11);
+}
+
+int8_t com_get_double(const uint16_t channel_id, double* data, uint16_t* reason) {
+
+    if (!is_channel_ready_to_read(channel_id)) {
+        return -3; // channel empty
+    }
+
+    uint8_t bytes[11];
+
+    com_channel_read(channel_id, bytes, 11);
+
+    if (bytes[0] != COM_TYPE_DUB) {
+        return -4; // wrong data type
+    }
+
+    memcpy(data, bytes + 3, 8);
+    // WARNING: dependent on endianness of system
+
+    *reason = bytes[1] << 8 | bytes[2];
+
+    return 0;
+}
+
+int8_t com_send_char(const uint16_t channel_id, const char data, const uint16_t reason) {
+
+    if (!is_channel_ready_to_write(channel_id)) {
+        return -3; // current contents have not been read
+    }
+
+    uint8_t bytes[4];
+
+    bytes[0] = COM_TYPE_CHAR;
+    bytes[1] = reason >> 8;
+    bytes[2] = reason;
+    bytes[3] = data;
+
+    // TODO Handle non-zero return
+    return com_channel_write(channel_id, bytes, 4);
+}
+
+int8_t com_get_char(const uint16_t channel_id, char* data, uint16_t* reason) {
+
+    if (!is_channel_ready_to_read(channel_id)) {
+        return -3; // channel empty
+    }
+
+    uint8_t bytes[4];
+
+    com_channel_read(channel_id, bytes, 4);
+
+    if (bytes[0] != COM_TYPE_CHAR) {
+        return -4; // wrong data type
+    }
+
+    char data_char = bytes[3];
+    *data = data_char;
 
     *reason = bytes[1] << 8 | bytes[2];
 

@@ -2,6 +2,8 @@
 // Created by wolfboy on 11/27/2025.
 //
 
+// TODO: Move to Kernel
+
 #ifndef KELPOS_LITE_COM_CHANNEL_PROTOCOL_H
 #define KELPOS_LITE_COM_CHANNEL_PROTOCOL_H
 
@@ -35,5 +37,14 @@ int8_t com_get_uint64(uint16_t channel_id, uint64_t* data, uint16_t* reason);
 
 int8_t com_send_int64(uint16_t channel_id, int64_t data, uint16_t reason);
 int8_t com_get_int64(uint16_t channel_id, int64_t* data, uint16_t* reason);
+
+int8_t com_send_float(uint16_t channel_id, float data, uint16_t reason);
+int8_t com_get_float(uint16_t channel_id, float* data, uint16_t* reason);
+
+int8_t com_send_double(uint16_t channel_id, double data, uint16_t reason);
+int8_t com_get_double(uint16_t channel_id, double* data, uint16_t* reason);
+
+int8_t com_send_char(uint16_t channel_id, char data, uint16_t reason);
+int8_t com_get_char(uint16_t channel_id, char* data, uint16_t* reason);
 
 #endif //KELPOS_LITE_COM_CHANNEL_PROTOCOL_H
