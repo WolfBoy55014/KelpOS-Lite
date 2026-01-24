@@ -342,3 +342,71 @@ int8_t com_get_char(const uint16_t channel_id, char* data, uint16_t* reason) {
 
     return 0;
 }
+
+int8_t com_send_char_array(const uint16_t channel_id, char data[], uint32_t size, const uint16_t reason) {
+
+    // packet shape:
+    // | Type (8) | Reason (16) | isFirst (1) | Index (15) | Size (16) | Payload |
+    // ^^^ per send
+    // 62.5% of data is actual data with 4 packets with channel size of 16
+
+    // OR
+
+    // initial packet shape:
+    // | Type (8) | Reason (16) | Total Size (32) | Num Packets (16) |
+
+    // following packet shape:
+    // | Type (8) | Reason (16) | Size (16) |
+
+    return 0;
+}
+
+int8_t com_send_char_array_fast(const uint16_t channel_id, const char* data, const uint16_t size, const uint16_t reason) {
+
+    const uint32_t packet_size = size + 3;
+
+    if (packet_size > CHANNEL_SIZE) {
+        return -4; // array too big, increase channel size, or decrease array size
+    }
+
+    if (!is_channel_ready_to_write(channel_id)) {
+        return -3; // current contents have not been read
+    }
+
+    uint8_t bytes[packet_size];
+
+    bytes[0] = COM_TYPE_ARRAY;
+    bytes[1] = reason >> 8;
+    bytes[2] = reason;
+
+    for (uint16_t i = 0; i < size; i++) {
+        bytes[3 + i] = data[i];
+    }
+
+    // TODO Handle non-zero return
+    return com_channel_write(channel_id, bytes, packet_size);
+}
+
+int8_t com_get_char_array_fast(const uint16_t channel_id, char (*data)[CHANNEL_SIZE], uint16_t* size, uint16_t* reason) {
+    // TODO: How the HECK I'm I SUPPOSED to pass a pointer to an ARRAY! >:(
+
+    if (!is_channel_ready_to_read(channel_id)) {
+        return -3; // channel empty
+    }
+
+    uint8_t bytes[CHANNEL_SIZE];
+
+    *size = com_channel_read(channel_id, bytes, CHANNEL_SIZE) - 3;
+
+    if (bytes[0] != COM_TYPE_ARRAY) {
+        return -4; // wrong data type
+    }
+
+    *reason = bytes[1] << 8 | bytes[2];
+
+    for (uint16_t i = 0; i < *size; i++) {
+        (*data)[i] = bytes[3 + i];
+    }
+
+    return 0;
+}

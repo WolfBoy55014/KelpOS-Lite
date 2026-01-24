@@ -108,8 +108,9 @@ void monitor_task(uint32_t pid) {
 }
 
 void task_tx(uint32_t pid) {
-    double value = -3.14159265358979323846;
-    uint16_t reason = 912;
+    char value[] = {3, 1, 4, 1, 5, 9};
+    uint16_t size = 6;
+    uint16_t reason = 76;
     uint32_t rx_task_pid = pid + 1;
 
     while (!task_exists(rx_task_pid)) {
@@ -118,11 +119,17 @@ void task_tx(uint32_t pid) {
 
     task_sleep_ms(2000);
 
-    printf("Value: %.20f\n", value);
+    printf("Value: ");
+
+    for (int i = 0; i < size; ++i) {
+        printf("%d, ", value[i]);
+    }
+
+    printf("\n");
 
     uint16_t channel_id = com_channel_request(rx_task_pid);
 
-    com_send_double(channel_id, value, reason);
+    com_send_char_array_fast(channel_id, value, size, reason);
 
     while (!is_channel_ready_to_write(channel_id)) {
         task_yield();
@@ -147,12 +154,19 @@ void task_rx(uint32_t pid) {
         for (int i = 0; i < num_connected; ++i) {
 
             if (is_channel_ready_to_read(channel_ids[i])) {
-                double value;
+                char value[CHANNEL_SIZE];
+                uint16_t size = 0;
                 uint16_t reason;
 
-                com_get_double(channel_ids[i], &value, &reason);
+                com_get_char_array_fast(channel_ids[i], &value, &size, &reason);
 
-                printf("Value: %.20f, Reason: %u\n", value, reason);
+                printf("Value: ");
+
+                for (int f = 0; f < size; ++f) {
+                    printf("%d, ", value[f]);
+                }
+
+                printf("Reason: %u\n", reason);
             }
         }
 

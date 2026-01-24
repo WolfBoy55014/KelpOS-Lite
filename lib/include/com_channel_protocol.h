@@ -9,6 +9,8 @@
 
 #include <stdint.h>
 
+#include "kernel_config.h"
+
 #define COM_TYPE_UINT32 1   // chanel contains an unsigned int
 #define COM_TYPE_UINT64 2   // channel contains an unsigned long
 #define COM_TYPE_INT32  3   // channel contains an int
@@ -17,6 +19,7 @@
 #define COM_TYPE_DUB    6   // channel contains a double
 #define COM_TYPE_CHAR   7   // channel contains a character
 #define COM_TYPE_STR    8   // channel contains a char[]
+#define COM_TYPE_ARRAY  9   // channel contains a char[] but faster
 #define COM_TYPE_REQ    0   // channel contains a request id
 
 /**
@@ -46,5 +49,11 @@ int8_t com_get_double(uint16_t channel_id, double* data, uint16_t* reason);
 
 int8_t com_send_char(uint16_t channel_id, char data, uint16_t reason);
 int8_t com_get_char(uint16_t channel_id, char* data, uint16_t* reason);
+
+int8_t com_send_char_array(uint16_t channel_id, char data[], uint32_t size, uint16_t reason);
+int8_t com_get_char_array(uint16_t channel_id, char* data[], uint16_t* reason);
+
+int8_t com_send_char_array_fast(uint16_t channel_id, const char* data, uint16_t size, uint16_t reason);
+int8_t com_get_char_array_fast(uint16_t channel_id, char (*data)[CHANNEL_SIZE], uint16_t* size, uint16_t* reason);
 
 #endif //KELPOS_LITE_COM_CHANNEL_PROTOCOL_H
