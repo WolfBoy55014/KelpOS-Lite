@@ -108,8 +108,18 @@ void monitor_task(uint32_t pid) {
 }
 
 void task_tx(uint32_t pid) {
-    char value[] = {3, 1, 4, 1, 5, 9};
-    uint16_t size = 6;
+    // char value[] = {
+    //     3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6, 4, 3, 3, 8, 3, 2, 7, 9, 5, 0, 2, 8, 8, 4,
+    //     1, 9, 7, 1, 6, 9, 3, 9, 9, 3, 7, 5, 1, 0, 5, 8, 2, 0, 9, 7, 4, 9, 4, 4, 5, 9, 2, 3, 0, 7, 8, 1, 6, 4, 0, 6, 2,
+    //     8, 6, 2, 0, 8, 9, 9, 8, 6, 2, 8, 0, 3, 4, 8, 2, 5, 3, 4, 2, 1, 1, 7, 0, 6, 7, 9, 8, 2, 1, 4, 8, 0, 8, 6, 5, 1,
+    //     3, 2, 8, 2, 3, 0, 6, 6, 4, 7, 0, 9, 3, 8, 4, 4, 6, 0, 9, 5, 5, 0, 5, 8, 2, 2, 3, 1, 7, 2, 5, 3, 5, 9, 4, 0, 8,
+    //     1, 2, 8, 4, 8, 1, 1, 1, 7, 4, 5, 0, 2, 8, 4, 1, 0, 2, 7, 0, 1, 9, 3, 8, 5, 2, 1, 1, 0, 5, 5, 5, 9, 6, 4, 4, 6,
+    //     2, 2, 9, 4, 8, 9, 5, 4, 9, 3, 0, 3, 8, 1, 9, 6, 4, 4, 2, 8, 8, 1, 0, 9, 7, 5, 6, 6, 5, 9, 3, 3, 4, 4, 6, 1, 2,
+    //     8, 4, 7, 5, 6, 4, 8, 2, 3, 3, 7, 8, 6, 7, 8, 3, 1, 6, 5, 2, 7, 1, 2, 0, 1, 9, 0, 9, 1, 4, 5, 6, 4, 8, 5, 6, 6,
+    //     9, 2, 3, 4, 6, 0, 3, 4, 8, 6, 1, 0, 4, 5, 4, 3, 2, 6, 6, 4, 8, 2, 1
+    // };
+    char value[] = "Space is big. You just won't believe how vastly, hugely, mind-bogglingly big it is. I mean, you may think it's a long way down the road to the chemist's, but that's just peanuts to space.\0";
+    uint16_t size = 188;
     uint16_t reason = 76;
     uint32_t rx_task_pid = pid + 1;
 
@@ -119,17 +129,11 @@ void task_tx(uint32_t pid) {
 
     task_sleep_ms(2000);
 
-    printf("Value: ");
-
-    for (int i = 0; i < size; ++i) {
-        printf("%d, ", value[i]);
-    }
-
-    printf("\n");
+    printf("Value: %s\n", value);
 
     uint16_t channel_id = com_channel_request(rx_task_pid);
 
-    com_send_char_array_fast(channel_id, value, size, reason);
+    com_send_char_array(channel_id, value, size, reason);
 
     while (!is_channel_ready_to_write(channel_id)) {
         task_yield();
@@ -154,19 +158,13 @@ void task_rx(uint32_t pid) {
         for (int i = 0; i < num_connected; ++i) {
 
             if (is_channel_ready_to_read(channel_ids[i])) {
-                char value[CHANNEL_SIZE];
-                uint16_t size = 0;
+                char value[300];
+                uint32_t size = 0;
                 uint16_t reason;
 
-                com_get_char_array_fast(channel_ids[i], &value, &size, &reason);
+                com_get_char_array(channel_ids[i], value, sizeof(value), &size, &reason);
 
-                printf("Value: ");
-
-                for (int f = 0; f < size; ++f) {
-                    printf("%d, ", value[f]);
-                }
-
-                printf("Reason: %u\n", reason);
+                printf("Value: %s Reason: %u\n", value, reason);
             }
         }
 
