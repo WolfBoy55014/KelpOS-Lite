@@ -8,7 +8,7 @@
 #include "scheduler_internal.h"
 #include "governor.h"
 #include "usb_keyboard.h"
-#include "com_channel_protocol.h"
+#include "kernel/include/lib/com_channel_protocol.h"
 
 void test_task(const uint32_t pid) {
     volatile uint32_t iterations = 0;
