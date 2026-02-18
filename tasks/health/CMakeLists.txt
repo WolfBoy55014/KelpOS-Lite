@@ -6,7 +6,6 @@
 add_library(tasks_health INTERFACE)
 
 target_sources(tasks_health INTERFACE
-        governor.c
 )
 
 target_include_directories(tasks_health INTERFACE
