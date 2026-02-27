@@ -63,7 +63,6 @@ pico_enable_stdio_usb(KelpOS-Lite 0)
 # Add the standard library to the build
 target_link_libraries(KelpOS-Lite
         rp2040_kernel
-        lib_com_protocol
         tasks_health
         driver_usb_keyboard
         pico_stdlib)

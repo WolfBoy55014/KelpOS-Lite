@@ -9,13 +9,14 @@
 #include "governor.h"
 #include "usb_keyboard.h"
 #include "kernel/include/lib/com_channel_protocol.h"
+#include "hardware/clocks.h"
 
 void test_task(const uint32_t pid) {
     volatile uint32_t iterations = 0;
     volatile uint32_t result = 1;
 
     for (int d = 0; d < 1000000; d += 20000) {
-        for (int u = 0; u < 40; ++u) {
+        for (int u = 0; u < 20; ++u) {
             uint64_t start = time_us_64();
 
             // Do some actual computation (not optimized away)
@@ -40,13 +41,15 @@ void monitor_task(uint32_t pid) {
     while (true) {
         printf("========= System Report =========\n");
 
+        printf("System Clock: %lu kHz\n", clock_get_hz(clk_sys) / 1000);
+
         for (uint8_t c = 0; c < CORE_COUNT; c++) {
             printf("Core %u: [", c);
 
             uint8_t usage = get_core_usage(c);
             for (int u = 0; u < 100; u += 100 / length) {
                 if (u <= usage) {
-                    printf("█");
+                    printf("=");
                 } else {
                     printf(" ");
                 }
@@ -69,7 +72,7 @@ void monitor_task(uint32_t pid) {
             uint8_t usage = task->cpu_usage;
             for (int u = 0; u < 100; u += 100 / length) {
                 if (u <= usage) {
-                    printf("░");
+                    printf("=");
                 } else {
                     printf(" ");
                 }
@@ -92,7 +95,7 @@ void monitor_task(uint32_t pid) {
             uint8_t usage = task->stack_usage;
             for (int u = 0; u < 100; u += 100 / length) {
                 if (u <= usage) {
-                    printf("░");
+                    printf("=");
                 } else {
                     printf(" ");
                 }
@@ -131,7 +134,7 @@ void task_tx(uint32_t pid) {
 
     printf("Value: %s\n", value);
 
-    uint16_t channel_id = com_channel_request(rx_task_pid);
+    uint16_t channel_id = com_channel_request(rx_task_pid, true);
 
     com_send_char_array(channel_id, value, size, reason);
 
@@ -140,8 +143,6 @@ void task_tx(uint32_t pid) {
     }
 
     task_sleep_ms(1000);
-
-    com_channel_free(channel_id);
 }
 
 void task_rx(uint32_t pid) {
@@ -175,11 +176,9 @@ void task_rx(uint32_t pid) {
 int main() {
     stdio_init_all();
 
-    kelp_governor_set_power_mode(GOVERNOR_POWER_SAVE);
-
     // task_add(kelp_governor, 8, 128);
     // task_add(kelp_usb_keyboard, 11, 128);
-    // task_add(monitor_task, 12, 127);
+    task_add(monitor_task, 12, 127);
     // task_add(test_task, 9, 127);
     // task_add(test_task, 10, 127);
 
@@ -187,6 +186,8 @@ int main() {
     task_add(task_rx, 5, 127);
 
     kernel_start();
+
+    governor_set_mode(GOVERNOR_POWER_SAVE);
 
     while (true) {
         tight_loop_contents();
