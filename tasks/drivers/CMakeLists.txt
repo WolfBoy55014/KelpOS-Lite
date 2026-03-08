@@ -6,8 +6,7 @@
 add_library(driver_usb_keyboard INTERFACE)
 
 target_sources(driver_usb_keyboard INTERFACE
-        usb_keyboard.c
-        hid_app.c
+        usb_hid.c
 )
 
 target_include_directories(driver_usb_keyboard INTERFACE
