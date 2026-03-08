@@ -47,6 +47,9 @@ add_subdirectory(kernel/)
 # Add Health Tasks directory
 add_subdirectory(tasks/health)
 
+# Add Service Tasks directory
+add_subdirectory(tasks/service)
+
 # Add Driver Tasks directory
 add_subdirectory(tasks/drivers)
 
@@ -64,6 +67,7 @@ pico_enable_stdio_usb(KelpOS-Lite 0)
 target_link_libraries(KelpOS-Lite
         rp2040_kernel
         tasks_health
+        tasks_service
         driver_usb_keyboard
         pico_stdlib)
 

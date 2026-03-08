@@ -8,8 +8,9 @@
 #include "scheduler_internal.h"
 #include "governor.h"
 #include "usb_keyboard.h"
-#include "kernel/include/lib/com_channel_protocol.h"
+#include "com_channel_protocol.h"
 #include "hardware/clocks.h"
+#include "text_service.h"
 
 void test_task(const uint32_t pid) {
     volatile uint32_t iterations = 0;
@@ -173,17 +174,43 @@ void task_rx(uint32_t pid) {
     }
 }
 
+char* message = "A towel, [The Hitchhiker's Guide to the Galaxy] says, is about the most massively useful thing an interstellar hitchhiker can have. Partly it has great practical value. You can wrap it around you for warmth as you bound across the cold moons of Jaglan Beta; you can lie on it on the brilliant marble-sanded beaches of Santraginus V, inhaling the heady sea vapors; you can sleep under it beneath the stars which shine so redly on the desert world of Kakrafoon; use it to sail a miniraft down the slow heavy River Moth; wet it for use in hand-to-hand-combat; wrap it round your head to ward off noxious fumes or avoid the gaze of the Ravenous Bugblatter Beast of Traal (such a mind-boggingly stupid animal, it assumes that if you can't see it, it can't see you); you can wave your towel in emergencies as a distress signal, and of course dry yourself off with it if it still seems to be clean enough.";
+
+void task(uint32_t pid) {
+    task_sleep_ms(1000);
+
+    for (uint32_t c = 0; c < strlen(message); c++) {
+        kelp_text_send_char(message[c]);
+    }
+}
+
+void task_one(uint32_t pid) {
+    task_sleep_ms(1000);
+
+    uint32_t start_time = time_us_32();
+    char c = kelp_text_read_char();
+    while (c != '\0') {
+        c = kelp_text_read_char();
+    }
+    // calculate the transfer rate
+    printf("\n Took %lu us to transfer %u bytes of data. (%lu Bps)\n", time_us_32() - start_time, strlen(message), strlen(message) / ((time_us_32() - start_time) / 1000000));
+}
+
 int main() {
     stdio_init_all();
 
     // task_add(kelp_governor, 8, 128);
     // task_add(kelp_usb_keyboard, 11, 128);
-    task_add(monitor_task, 12, 127);
+    // task_add(monitor_task, 12, 127);
     // task_add(test_task, 9, 127);
     // task_add(test_task, 10, 127);
 
-    task_add(task_tx, 4, 127);
-    task_add(task_rx, 5, 127);
+    // task_add(task_tx, 4, 127);
+    // task_add(task_rx, 5, 127);
+
+    task_add(task, 4, 127);
+    task_add(task_one, 5, 127);
+    task_add(kelp_task_text_service, TEXT_SERVICE_PID, 127);
 
     kernel_start();
 
