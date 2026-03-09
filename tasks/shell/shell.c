@@ -8,7 +8,7 @@
 
 // non-blocking read interface
 static int ush_read(struct ush_object* self, char* ch) {
-    char c = kelp_text_read_char();
+    char c = kelp_text_read_input_char();
 
     if (c != '\0') {
         *ch = c;
@@ -20,9 +20,12 @@ static int ush_read(struct ush_object* self, char* ch) {
 
 // non-blocking write interface
 static int ush_write(struct ush_object* self, char ch) {
-    // TODO make this use the service somehow
-    printf("%c", ch);
-    return 1;
+
+    if (kelp_text_send_output_char(ch) == 0) {
+        return 1;
+    }
+
+    return 0;
 }
 
 // I/O interface descriptor

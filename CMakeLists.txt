@@ -78,7 +78,7 @@ target_link_libraries(KelpOS-Lite
         rp2040_kernel
         tasks_health
         tasks_service
-        driver_usb_keyboard
+        tasks_driver
         shell
         )
 

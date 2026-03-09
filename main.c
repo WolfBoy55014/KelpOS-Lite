@@ -7,8 +7,9 @@
 #include "scheduler.h"
 #include "scheduler_internal.h"
 #include "governor.h"
-#include "usb_hid.h"
+#include "usb_hid_driver.h"
 #include "com_channel_protocol.h"
+#include "serial_driver.h"
 #include "hardware/clocks.h"
 #include "text_service.h"
 #include "shell.h"
@@ -177,7 +178,7 @@ void task_rx(uint32_t pid) {
 
 void task_output(uint32_t pid) {
     while (true) {
-        char c = kelp_text_read_char();
+        char c = kelp_text_read_output_char();
 
         if (c != '\0') {
             printf("%c", c);
@@ -202,6 +203,7 @@ int main() {
     task_add(kelp_task_shell, KELP_SHELL_PID, 127);
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 127);
     task_add(kelp_task_usb_hid, USB_HID_DRIVER_PID, 127);
+    task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 127);
 
     kernel_start();
 

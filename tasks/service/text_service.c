@@ -11,11 +11,15 @@
 #include "com_channel_protocol.h"
 #include "scheduler.h"
 
-char text_buffer[TEXT_BUFFER_SIZE];
-uint16_t text_buffer_front = 0;
-uint16_t text_buffer_back = 0;
+char input_text_buffer[TEXT_BUFFER_SIZE];
+uint16_t input_text_buffer_front = 0;
+uint16_t input_text_buffer_back = 0;
 
-int8_t kelp_text_send_char(const char c) {
+char output_text_buffer[TEXT_BUFFER_SIZE];
+uint16_t output_text_buffer_front = 0;
+uint16_t output_text_buffer_back = 0;
+
+int8_t kelp_text_send_input_char(const char c) {
     int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
     if (channel_id < 0) {
         return channel_id;
@@ -33,7 +37,7 @@ int8_t kelp_text_send_char(const char c) {
         return -1;
     }
 
-    int8_t error = com_send_char(channel_id, c, REASON_TEXT_SEND_CHAR);
+    int8_t error = com_send_char(channel_id, c, REASON_TEXT_SEND_INPUT_CHAR);
     if (error < 0) {
         return error;
     }
@@ -41,7 +45,7 @@ int8_t kelp_text_send_char(const char c) {
     return 0;
 }
 
-int16_t kelp_text_send_string(const char* str, const uint8_t len) {
+int16_t kelp_text_send_input_string(const char* str, const uint8_t len) {
     int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
     if (channel_id < 0) {
         return channel_id;
@@ -59,7 +63,7 @@ int16_t kelp_text_send_string(const char* str, const uint8_t len) {
         return -1;
     }
 
-    int8_t error = com_send_char_array_fast(channel_id, str, len, REASON_TEXT_SEND_STR);
+    int8_t error = com_send_char_array_fast(channel_id, str, len, REASON_TEXT_SEND_INPUT_STR);
     if (error < 0) {
         return error;
     }
@@ -67,7 +71,7 @@ int16_t kelp_text_send_string(const char* str, const uint8_t len) {
     return 0;
 }
 
-char kelp_text_read_char() {
+char kelp_text_read_input_char() {
     // send request
 
     int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
@@ -87,7 +91,7 @@ char kelp_text_read_char() {
         return '\0';
     }
 
-    int8_t error = com_send_request(channel_id, REASON_TEXT_READ_CHAR);
+    int8_t error = com_send_request(channel_id, REASON_TEXT_READ_INPUT_CHAR);
     if (error < 0) {
         return '\0';
     }
@@ -110,28 +114,148 @@ char kelp_text_read_char() {
     uint16_t reason;
 
     error = com_get_char(channel_id, &c, &reason);
-    if ((error < 0) || (reason != REASON_TEXT_READ_CHAR)) {
+    if ((error < 0) || (reason != REASON_TEXT_READ_INPUT_CHAR)) {
         return '\0';
     }
 
     return c;
 }
 
-void add_char_to_buffer(const char c) {
-    if (((text_buffer_front + 1) % TEXT_BUFFER_SIZE) == text_buffer_back) {
-        return;
+int8_t kelp_text_send_output_char(const char c) {
+    int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
+    if (channel_id < 0) {
+        return channel_id;
     }
-    text_buffer[text_buffer_front] = c;
-    text_buffer_front = (text_buffer_front + 1) % TEXT_BUFFER_SIZE;
+
+    for (uint8_t i = 0; i < 100; i++) {
+        if (is_channel_ready_to_write(channel_id)) {
+            break;
+        }
+
+        task_yield();
+    }
+
+    if (!is_channel_ready_to_write(channel_id)) {
+        return -1;
+    }
+
+    int8_t error = com_send_char(channel_id, c, REASON_TEXT_SEND_OUTPUT_CHAR);
+    if (error < 0) {
+        return error;
+    }
+
+    return 0;
 }
 
-char get_char_from_buffer() {
-    if (text_buffer_back == text_buffer_front) {
+int16_t kelp_text_send_output_string(const char* str, const uint8_t len) {
+    int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
+    if (channel_id < 0) {
+        return channel_id;
+    }
+
+    for (uint16_t i = 0; i < 1000; i++) {
+        if (is_channel_ready_to_write(channel_id)) {
+            break;
+        }
+
+        task_sleep_ms(1);
+    }
+
+    if (!is_channel_ready_to_write(channel_id)) {
+        return -1;
+    }
+
+    int8_t error = com_send_char_array_fast(channel_id, str, len, REASON_TEXT_SEND_OUTPUT_STR);
+    if (error < 0) {
+        return error;
+    }
+
+    return 0;
+}
+
+char kelp_text_read_output_char() {
+    // send request
+
+    int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
+    if (channel_id < 0) {
         return '\0';
     }
-    char c = text_buffer[text_buffer_back];
-    text_buffer[text_buffer_back] = '\0';
-    text_buffer_back = (text_buffer_back + 1) % TEXT_BUFFER_SIZE;
+
+    for (uint16_t i = 0; i < 1000; i++) {
+        if (is_channel_ready_to_write(channel_id)) {
+            break;
+        }
+
+        task_sleep_ms(1);
+    }
+
+    if (!is_channel_ready_to_write(channel_id)) {
+        return '\0';
+    }
+
+    int8_t error = com_send_request(channel_id, REASON_TEXT_READ_OUTPUT_CHAR);
+    if (error < 0) {
+        return '\0';
+    }
+
+    // get result
+
+    for (uint16_t i = 0; i < 1000; i++) {
+        if (is_channel_ready_to_read(channel_id)) {
+            break;
+        }
+
+        task_sleep_ms(1);
+    }
+
+    if (!is_channel_ready_to_read(channel_id)) {
+        return '\0';
+    }
+
+    char c = '\0';
+    uint16_t reason;
+
+    error = com_get_char(channel_id, &c, &reason);
+    if ((error < 0) || (reason != REASON_TEXT_READ_OUTPUT_CHAR)) {
+        return '\0';
+    }
+
+    return c;
+}
+
+void add_char_to_input_buffer(const char c) {
+    if (((input_text_buffer_front + 1) % TEXT_BUFFER_SIZE) == input_text_buffer_back) {
+        return;
+    }
+    input_text_buffer[input_text_buffer_front] = c;
+    input_text_buffer_front = (input_text_buffer_front + 1) % TEXT_BUFFER_SIZE;
+}
+
+char get_char_from_input_buffer() {
+    if (input_text_buffer_back == input_text_buffer_front) {
+        return '\0';
+    }
+    char c = input_text_buffer[input_text_buffer_back];
+    input_text_buffer[input_text_buffer_back] = '\0';
+    input_text_buffer_back = (input_text_buffer_back + 1) % TEXT_BUFFER_SIZE;
+    return c;
+}
+
+void add_char_to_output_buffer(const char c) {
+    if (((output_text_buffer_front + 1) % TEXT_BUFFER_SIZE) == output_text_buffer_back) {
+        return;
+    }
+    output_text_buffer[output_text_buffer_front] = c;
+    output_text_buffer_front = (output_text_buffer_front + 1) % TEXT_BUFFER_SIZE;
+}
+
+char get_char_from_output_buffer() {
+    if (output_text_buffer_back == output_text_buffer_front) {
+        return '\0';
+    }
+    char c = output_text_buffer[output_text_buffer_back];
+    output_text_buffer[output_text_buffer_back] = '\0';
+    output_text_buffer_back = (output_text_buffer_back + 1) % TEXT_BUFFER_SIZE;
     return c;
 }
 
@@ -160,15 +284,26 @@ void kelp_task_text_service(uint32_t pid) {
                         continue;
                     }
 
-                    // do they want to send a char for saving?
-                    if (reason == REASON_TEXT_SEND_CHAR) {
+                    // do they want to send input for saving?
+                    if (reason == REASON_TEXT_SEND_INPUT_CHAR) {
                         if (received_char == '\0') {
                             // might mean they didn't send anything
                             // we don't want to save this anyway
                             continue;
                         }
 
-                        add_char_to_buffer(received_char);
+                        add_char_to_input_buffer(received_char);
+                    }
+
+                    // or do they want to send output for saving?
+                    else if (reason == REASON_TEXT_SEND_OUTPUT_CHAR) {
+                        if (received_char == '\0') {
+                            // might mean they didn't send anything
+                            // we don't want to save this anyway
+                            continue;
+                        }
+
+                        add_char_to_output_buffer(received_char);
                     }
                 }
 
@@ -184,8 +319,8 @@ void kelp_task_text_service(uint32_t pid) {
                         continue;
                     }
 
-                    // do they want to send a char for saving?
-                    if (reason == REASON_TEXT_SEND_STR) {
+                    // do they want to send input for saving?
+                    if (reason == REASON_TEXT_SEND_INPUT_STR) {
                         for (uint16_t i = 0; i < size; i++) {
                             if (received_chars[i] == '\0') {
                                 // might mean they didn't send anything
@@ -193,7 +328,20 @@ void kelp_task_text_service(uint32_t pid) {
                                 continue;
                             }
 
-                            add_char_to_buffer(received_chars[i]);
+                            add_char_to_input_buffer(received_chars[i]);
+                        }
+                    }
+
+                    // or do they want to send output for saving?
+                    else if (reason == REASON_TEXT_SEND_OUTPUT_STR) {
+                        for (uint16_t i = 0; i < size; i++) {
+                            if (received_chars[i] == '\0') {
+                                // might mean they didn't send anything
+                                // we don't want to save this anyway
+                                continue;
+                            }
+
+                            add_char_to_output_buffer(received_chars[i]);
                         }
                     }
                 }
@@ -208,11 +356,11 @@ void kelp_task_text_service(uint32_t pid) {
                         continue;
                     }
 
-                    // do they want a character?
-                    if (reason == REASON_TEXT_READ_CHAR) {
+                    // do they want input char?
+                    if (reason == REASON_TEXT_READ_INPUT_CHAR) {
 
                         // send them their character
-                        char character = get_char_from_buffer();
+                        char character = get_char_from_input_buffer();
 
                         for (uint16_t i = 0; i < 1000; i++) {
                             if (is_channel_ready_to_write(channel_id)) {
@@ -226,7 +374,31 @@ void kelp_task_text_service(uint32_t pid) {
                             continue;
                         }
 
-                        error = com_send_char(channel_id, character, REASON_TEXT_READ_CHAR);
+                        error = com_send_char(channel_id, character, REASON_TEXT_READ_INPUT_CHAR);
+                        if (error < 0) {
+                            continue;
+                        }
+                    }
+
+                    // or do they want output?
+                    else if (reason == REASON_TEXT_READ_OUTPUT_CHAR) {
+
+                        // send them their character
+                        char character = get_char_from_output_buffer();
+
+                        for (uint16_t i = 0; i < 1000; i++) {
+                            if (is_channel_ready_to_write(channel_id)) {
+                                break;
+                            }
+
+                            task_sleep_ms(1);
+                        }
+
+                        if (!is_channel_ready_to_write(channel_id)) {
+                            continue;
+                        }
+
+                        error = com_send_char(channel_id, character, REASON_TEXT_READ_OUTPUT_CHAR);
                         if (error < 0) {
                             continue;
                         }

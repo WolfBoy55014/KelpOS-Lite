@@ -4,7 +4,7 @@
 
 #include <string.h>
 
-#include "usb_hid.h"
+#include "usb_hid_driver.h"
 
 #include "scheduler.h"
 #include "text_service.h"
@@ -94,7 +94,7 @@ static void process_kbd_report(hid_keyboard_report_t const* report) {
                 // the key is newly pressed
                 bool const is_shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
                 uint8_t ch = keycode2ascii[report->keycode[i]][is_shift ? 1 : 0];
-                kelp_text_send_char(ch);
+                kelp_text_send_input_char(ch);
             }
         }
     }
