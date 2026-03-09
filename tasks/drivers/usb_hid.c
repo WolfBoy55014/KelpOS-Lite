@@ -16,7 +16,7 @@ static uint8_t const keycode2ascii[128][2] = {HID_KEYCODE_TO_ASCII};
 
 static void process_kbd_report(hid_keyboard_report_t const* report);
 
-void kelp_usb_hid(uint32_t pid) {
+void kelp_task_usb_hid(uint32_t pid) {
     board_init();
     // TODO: get this to stop messing with the LED
 
@@ -95,9 +95,6 @@ static void process_kbd_report(hid_keyboard_report_t const* report) {
                 bool const is_shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
                 uint8_t ch = keycode2ascii[report->keycode[i]][is_shift ? 1 : 0];
                 kelp_text_send_char(ch);
-                if (ch == '\r') {
-                    kelp_text_send_char('\n');
-                }// added new line for enter key
             }
         }
     }

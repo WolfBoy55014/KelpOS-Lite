@@ -1,20 +1,26 @@
 # ============================================================
-# MICROSHELL LIBRARY TARGET
+# SHELL LIBRARY TARGET
 # This can be linked by external projects
 # microshell Copyright (c) 2021 Marcin Borowicz <marcinbor85@gmail.com>
 # Huge thanks to Marcin for this amazing project
 # ============================================================
 
-add_library(shellminator INTERFACE)
+add_subdirectory(microshell/src)
 
-target_sources(shellminator INTERFACE
+add_library(shell INTERFACE)
 
+target_sources(shell INTERFACE
+        ${USH_SRC_FILES}
+        shell.c
 )
 
-target_include_directories(shellminator INTERFACE
-
+target_include_directories(shell INTERFACE
+        ${USH_INC_DIRS}
+        ${CMAKE_CURRENT_LIST_DIR}/include/
 )
 
-target_link_libraries(shellminator INTERFACE
+target_link_libraries(shell INTERFACE
         pico_stdlib
+        tasks_service
+        rp2040_kernel
 )

@@ -11,6 +11,7 @@
 #include "com_channel_protocol.h"
 #include "hardware/clocks.h"
 #include "text_service.h"
+#include "shell.h"
 
 void test_task(const uint32_t pid) {
     volatile uint32_t iterations = 0;
@@ -198,9 +199,9 @@ int main() {
     // task_add(task_tx, 4, 127);
     // task_add(task_rx, 5, 127);
 
-    task_add(task_output, 5, 127);
+    task_add(kelp_task_shell, KELP_SHELL_PID, 127);
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 127);
-    task_add(kelp_usb_hid, USB_HID_DRIVER_PID, 127);
+    task_add(kelp_task_usb_hid, USB_HID_DRIVER_PID, 127);
 
     kernel_start();
 

@@ -65,10 +65,6 @@ pico_enable_stdio_usb(KelpOS-Lite 0)
 
 # Add the standard library to the build
 target_link_libraries(KelpOS-Lite
-        rp2040_kernel
-        tasks_health
-        tasks_service
-        driver_usb_keyboard
         pico_stdlib)
 
 # Add the standard include files to the build
@@ -79,6 +75,11 @@ target_include_directories(KelpOS-Lite PRIVATE
 # Add any user requested libraries
 target_link_libraries(KelpOS-Lite 
         hardware_watchdog
+        rp2040_kernel
+        tasks_health
+        tasks_service
+        driver_usb_keyboard
+        shell
         )
 
 pico_add_extra_outputs(KelpOS-Lite)

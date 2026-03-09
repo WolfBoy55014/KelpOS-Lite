@@ -9,7 +9,7 @@
 
 #define USB_HID_DRIVER_PID 100
 
-// Driver Task
-void kelp_usb_hid(uint32_t pid);
+// driver Task
+void kelp_task_usb_hid(uint32_t pid);
 
 #endif //KELPOS_LITE_USB_KEYBOARD_H
