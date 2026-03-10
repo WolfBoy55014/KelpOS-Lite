@@ -14,7 +14,9 @@
 
 static uint8_t const keycode2ascii[128][2] = {HID_KEYCODE_TO_ASCII};
 
-static void process_kbd_report(hid_keyboard_report_t const* report);
+static struct usb_keyboard_t usb_keyboards[USB_HID_MAX_KEYBOARDS];
+
+static void process_kbd_report(struct usb_keyboard_t* usb_keyboard, hid_keyboard_report_t const* report);
 
 void kelp_task_usb_hid(uint32_t pid) {
     board_init();
@@ -41,6 +43,25 @@ void kelp_task_usb_hid(uint32_t pid) {
 
 // invoked when hid device is connected
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
+    uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+
+    if (itf_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
+        for (uint8_t k = 0; k < USB_HID_MAX_KEYBOARDS; k++) {
+            struct usb_keyboard_t* usb_keyboard = &usb_keyboards[k];
+            if (!usb_keyboard->device.connected) {
+                usb_keyboard->device.connected = true;
+                usb_keyboard->device.dev_addr = dev_addr;
+                usb_keyboard->device.instance = instance;
+
+                usb_keyboard->caps_lock = false;
+                usb_keyboard->num_lock = false;
+                usb_keyboard->scroll_lock = false;
+
+                break;
+            }
+        }
+    }
+
     if (!tuh_hid_receive_report(dev_addr, instance)) {
         // uh oh, we can't request reports!
     }
@@ -48,6 +69,28 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 
 // invoked when hid device is disconnected
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
+    uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+
+    if (itf_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
+        for (uint8_t k = 0; k < USB_HID_MAX_KEYBOARDS; k++) {
+            struct usb_keyboard_t* usb_keyboard = &usb_keyboards[k];
+            if (usb_keyboard->device.connected &&
+                usb_keyboard->device.dev_addr == dev_addr &&
+                usb_keyboard->device.instance == instance) {
+
+                // disconnect
+                usb_keyboard->device.connected = false;
+                usb_keyboard->device.dev_addr = 0;
+                usb_keyboard->device.instance = 0;
+
+                usb_keyboard->caps_lock = false;
+                usb_keyboard->num_lock = false;
+                usb_keyboard->scroll_lock = false;
+
+                break;
+            }
+        }
+    }
 }
 
 // invoked when hid sends a report
@@ -56,7 +99,17 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
 
     switch (itf_protocol) {
     case HID_ITF_PROTOCOL_KEYBOARD:
-        process_kbd_report((hid_keyboard_report_t const*)report);
+
+        for (uint8_t k = 0; k < USB_HID_MAX_KEYBOARDS; k++) {
+            struct usb_keyboard_t* usb_keyboard = &usb_keyboards[k];
+
+            if (usb_keyboard->device.connected &&
+                usb_keyboard->device.dev_addr == dev_addr &&
+                usb_keyboard->device.instance == instance) {
+                process_kbd_report(usb_keyboard, (hid_keyboard_report_t const*)report);
+                break;
+            }
+        }
         break;
 
     case HID_ITF_PROTOCOL_MOUSE:
@@ -81,13 +134,10 @@ static bool find_key_in_report(hid_keyboard_report_t const* report, uint8_t keyc
     return false;
 }
 
-static hid_keyboard_report_t prev_report = {0, 0, {0}}; // previous report to check key released
-
-static void process_kbd_report(hid_keyboard_report_t const* report) {
-
+static void process_kbd_report(struct usb_keyboard_t* usb_keyboard, hid_keyboard_report_t const* report) {
     for (uint8_t i = 0; i < 6; i++) {
         if (report->keycode[i]) {
-            if (find_key_in_report(&prev_report, report->keycode[i])) {
+            if (find_key_in_report(&usb_keyboard->last_report, report->keycode[i])) {
                 // was in previous report, so it is being held down
             }
             else {
@@ -99,5 +149,5 @@ static void process_kbd_report(hid_keyboard_report_t const* report) {
         }
     }
 
-    prev_report = *report;
+    usb_keyboard->last_report = *report;
 }

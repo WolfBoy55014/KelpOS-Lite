@@ -7,7 +7,7 @@
 void kelp_serial_driver(uint32_t pid) {
     while (1) {
         // send input
-        int c = getchar_timeout_us(5);
+        int c = getchar_timeout_us(0);
 
         if (c != PICO_ERROR_TIMEOUT) {
             kelp_text_send_input_char((char) c);
