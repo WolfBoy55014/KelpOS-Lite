@@ -200,10 +200,10 @@ int main() {
     // task_add(task_tx, 4, 127);
     // task_add(task_rx, 5, 127);
 
-    task_add(kelp_task_shell, KELP_SHELL_PID, 127);
-    task_add(kelp_task_text_service, TEXT_SERVICE_PID, 127);
-    task_add(kelp_task_usb_hid, USB_HID_DRIVER_PID, 127);
-    task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 127);
+    task_add(kelp_task_shell, KELP_SHELL_PID, 87);
+    task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);
+    task_add(kelp_task_usb_hid, USB_HID_DRIVER_PID, 89);
+    task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 89);
 
     kernel_start();
 

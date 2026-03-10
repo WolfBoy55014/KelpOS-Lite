@@ -69,6 +69,6 @@ void kelp_task_shell(uint32_t pid) {
         // non-blocking microshell service
         ush_service(&ush);
 
-        task_sleep_ms(5);
+        task_sleep_ms(1);
     }
 }

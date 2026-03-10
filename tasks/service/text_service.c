@@ -406,6 +406,6 @@ void kelp_task_text_service(uint32_t pid) {
                 }
             }
         }
-        task_sleep_ms(10);
+        task_sleep_ms(1);
     }
 }
