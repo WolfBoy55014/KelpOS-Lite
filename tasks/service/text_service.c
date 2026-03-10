@@ -20,24 +20,12 @@ uint16_t output_text_buffer_front = 0;
 uint16_t output_text_buffer_back = 0;
 
 int8_t kelp_text_send_input_char(const char c) {
-    int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
+    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
     if (channel_id < 0) {
         return channel_id;
     }
 
-    for (uint8_t i = 0; i < 100; i++) {
-        if (is_channel_ready_to_write(channel_id)) {
-            break;
-        }
-
-        task_yield();
-    }
-
-    if (!is_channel_ready_to_write(channel_id)) {
-        return -1;
-    }
-
-    int8_t error = com_send_char(channel_id, c, REASON_TEXT_SEND_INPUT_CHAR);
+    int8_t error = com_send_char_blocking(channel_id, c, REASON_TEXT_SEND_INPUT_CHAR);
     if (error < 0) {
         return error;
     }
@@ -46,24 +34,12 @@ int8_t kelp_text_send_input_char(const char c) {
 }
 
 int16_t kelp_text_send_input_string(const char* str, const uint8_t len) {
-    int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
+    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
     if (channel_id < 0) {
         return channel_id;
     }
 
-    for (uint16_t i = 0; i < 1000; i++) {
-        if (is_channel_ready_to_write(channel_id)) {
-            break;
-        }
-
-        task_sleep_ms(1);
-    }
-
-    if (!is_channel_ready_to_write(channel_id)) {
-        return -1;
-    }
-
-    int8_t error = com_send_char_array_fast(channel_id, str, len, REASON_TEXT_SEND_INPUT_STR);
+    int8_t error = com_send_char_array_fast_blocking(channel_id, str, len, REASON_TEXT_SEND_INPUT_STR);
     if (error < 0) {
         return error;
     }
@@ -74,46 +50,22 @@ int16_t kelp_text_send_input_string(const char* str, const uint8_t len) {
 char kelp_text_read_input_char() {
     // send request
 
-    int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
+    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
     if (channel_id < 0) {
         return '\0';
     }
 
-    for (uint16_t i = 0; i < 1000; i++) {
-        if (is_channel_ready_to_write(channel_id)) {
-            break;
-        }
-
-        task_sleep_ms(1);
-    }
-
-    if (!is_channel_ready_to_write(channel_id)) {
-        return '\0';
-    }
-
-    int8_t error = com_send_request(channel_id, REASON_TEXT_READ_INPUT_CHAR);
+    int8_t error = com_send_request_blocking(channel_id, REASON_TEXT_READ_INPUT_CHAR);
     if (error < 0) {
         return '\0';
     }
 
     // get result
 
-    for (uint16_t i = 0; i < 1000; i++) {
-        if (is_channel_ready_to_read(channel_id)) {
-            break;
-        }
-
-        task_sleep_ms(1);
-    }
-
-    if (!is_channel_ready_to_read(channel_id)) {
-        return '\0';
-    }
-
     char c = '\0';
     uint16_t reason;
 
-    error = com_get_char(channel_id, &c, &reason);
+    error = com_get_char_blocking(channel_id, &c, &reason);
     if ((error < 0) || (reason != REASON_TEXT_READ_INPUT_CHAR)) {
         return '\0';
     }
@@ -122,24 +74,12 @@ char kelp_text_read_input_char() {
 }
 
 int8_t kelp_text_send_output_char(const char c) {
-    int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
+    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
     if (channel_id < 0) {
         return channel_id;
     }
 
-    for (uint8_t i = 0; i < 100; i++) {
-        if (is_channel_ready_to_write(channel_id)) {
-            break;
-        }
-
-        task_yield();
-    }
-
-    if (!is_channel_ready_to_write(channel_id)) {
-        return -1;
-    }
-
-    int8_t error = com_send_char(channel_id, c, REASON_TEXT_SEND_OUTPUT_CHAR);
+    int8_t error = com_send_char_blocking(channel_id, c, REASON_TEXT_SEND_OUTPUT_CHAR);
     if (error < 0) {
         return error;
     }
@@ -148,24 +88,12 @@ int8_t kelp_text_send_output_char(const char c) {
 }
 
 int16_t kelp_text_send_output_string(const char* str, const uint8_t len) {
-    int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
+    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
     if (channel_id < 0) {
         return channel_id;
     }
 
-    for (uint16_t i = 0; i < 1000; i++) {
-        if (is_channel_ready_to_write(channel_id)) {
-            break;
-        }
-
-        task_sleep_ms(1);
-    }
-
-    if (!is_channel_ready_to_write(channel_id)) {
-        return -1;
-    }
-
-    int8_t error = com_send_char_array_fast(channel_id, str, len, REASON_TEXT_SEND_OUTPUT_STR);
+    int8_t error = com_send_char_array_fast_blocking(channel_id, str, len, REASON_TEXT_SEND_OUTPUT_STR);
     if (error < 0) {
         return error;
     }
@@ -176,46 +104,22 @@ int16_t kelp_text_send_output_string(const char* str, const uint8_t len) {
 char kelp_text_read_output_char() {
     // send request
 
-    int32_t channel_id = com_channel_request(TEXT_SERVICE_PID, true);
+    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
     if (channel_id < 0) {
         return '\0';
     }
 
-    for (uint16_t i = 0; i < 1000; i++) {
-        if (is_channel_ready_to_write(channel_id)) {
-            break;
-        }
-
-        task_sleep_ms(1);
-    }
-
-    if (!is_channel_ready_to_write(channel_id)) {
-        return '\0';
-    }
-
-    int8_t error = com_send_request(channel_id, REASON_TEXT_READ_OUTPUT_CHAR);
+    int8_t error = com_send_request_blocking(channel_id, REASON_TEXT_READ_OUTPUT_CHAR);
     if (error < 0) {
         return '\0';
     }
 
     // get result
 
-    for (uint16_t i = 0; i < 1000; i++) {
-        if (is_channel_ready_to_read(channel_id)) {
-            break;
-        }
-
-        task_sleep_ms(1);
-    }
-
-    if (!is_channel_ready_to_read(channel_id)) {
-        return '\0';
-    }
-
     char c = '\0';
     uint16_t reason;
 
-    error = com_get_char(channel_id, &c, &reason);
+    error = com_get_char_blocking(channel_id, &c, &reason);
     if ((error < 0) || (reason != REASON_TEXT_READ_OUTPUT_CHAR)) {
         return '\0';
     }
@@ -386,19 +290,7 @@ void kelp_task_text_service(uint32_t pid) {
                         // send them their character
                         char character = get_char_from_output_buffer();
 
-                        for (uint16_t i = 0; i < 1000; i++) {
-                            if (is_channel_ready_to_write(channel_id)) {
-                                break;
-                            }
-
-                            task_sleep_ms(1);
-                        }
-
-                        if (!is_channel_ready_to_write(channel_id)) {
-                            continue;
-                        }
-
-                        error = com_send_char(channel_id, character, REASON_TEXT_READ_OUTPUT_CHAR);
+                        error = com_send_char_blocking(channel_id, character, REASON_TEXT_READ_OUTPUT_CHAR);
                         if (error < 0) {
                             continue;
                         }
