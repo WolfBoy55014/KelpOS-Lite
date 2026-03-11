@@ -29,6 +29,6 @@ struct usb_keyboard_t {
 };
 
 // driver Task
-void kelp_task_usb_hid(uint32_t pid);
+void kelp_task_usb_hid(uint32_t pid, uint32_t signals, char* args);
 
 #endif //KELPOS_LITE_USB_KEYBOARD_H

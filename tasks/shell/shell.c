@@ -58,7 +58,7 @@ static const struct ush_descriptor ush_desc = {
 // root directory handler
 static struct ush_node_object root;
 
-void kelp_task_shell(uint32_t pid) {
+void kelp_task_shell(uint32_t pid, uint32_t signals, char* args) {
     // initialize microshell instance
     ush_init(&ush, &ush_desc);
 

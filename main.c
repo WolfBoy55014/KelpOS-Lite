@@ -176,29 +176,15 @@ void task_rx(uint32_t pid) {
     }
 }
 
-void task_output(uint32_t pid) {
-    while (true) {
-        char c = kelp_text_read_output_char();
-
-        if (c != '\0') {
-            printf("%c", c);
-        }
-
-        task_sleep_ms(1);
-    }
+void task_output(uint32_t pid, uint32_t signals, char* args) {
+    task_sleep_ms(5000);
+    uint32_t args_length = strlen(args);
+    printf("%lu: %s\n", args_length, args);
+    task_sleep_ms(1000);
 }
 
 int main() {
     stdio_init_all();
-
-    // task_add(kelp_governor, 8, 128);
-    // task_add(kelp_usb_keyboard, 11, 128);
-    // task_add(monitor_task, 12, 127);
-    // task_add(test_task, 9, 127);
-    // task_add(test_task, 10, 127);
-
-    // task_add(task_tx, 4, 127);
-    // task_add(task_rx, 5, 127);
 
     task_add(kelp_task_shell, KELP_SHELL_PID, 87);
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);

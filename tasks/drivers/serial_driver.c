@@ -4,7 +4,7 @@
 
 #include "include/serial_driver.h"
 
-void kelp_serial_driver(uint32_t pid) {
+void kelp_serial_driver(uint32_t pid, uint32_t signals, char* args) {
     while (1) {
         // send input
         int c = getchar_timeout_us(0);
