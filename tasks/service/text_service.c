@@ -266,19 +266,7 @@ void kelp_task_text_service(uint32_t pid, uint32_t signals, char* args) {
                         // send them their character
                         char character = get_char_from_input_buffer();
 
-                        for (uint16_t i = 0; i < 1000; i++) {
-                            if (is_channel_ready_to_write(channel_id)) {
-                                break;
-                            }
-
-                            task_sleep_ms(1);
-                        }
-
-                        if (!is_channel_ready_to_write(channel_id)) {
-                            continue;
-                        }
-
-                        error = com_send_char(channel_id, character, REASON_TEXT_READ_INPUT_CHAR);
+                        error = com_send_char_blocking(channel_id, character, REASON_TEXT_READ_INPUT_CHAR);
                         if (error < 0) {
                             continue;
                         }
@@ -298,6 +286,6 @@ void kelp_task_text_service(uint32_t pid, uint32_t signals, char* args) {
                 }
             }
         }
-        task_sleep_ms(1);
+        task_yield();
     }
 }

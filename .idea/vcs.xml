@@ -13,5 +13,7 @@
     <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/mbedtls" vcs="Git" />
     <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/tinyusb" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/kernel" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/tasks/shell/microshell" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/tasks/shell/microshell/tests/Unity" vcs="Git" />
   </component>
 </project>
