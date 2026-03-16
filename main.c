@@ -89,16 +89,16 @@ void monitor_task(uint32_t pid) {
     }
 }
 
-void boot_task(uint32_t pid, uint32_t signals, char* args) {
+void boot_task(uint32_t pid, uint32_t* signals, char* args) {
     // start services
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);
 
     // start drivers
-    task_add(kelp_task_usb_hid, USB_HID_DRIVER_PID, 89);
-    task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 89);
+    task_add(kelp_task_usb_hid, USB_HID_DRIVER_PID, 88);
+    task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 88);
 
     // start shell
-    task_add(kelp_task_shell, KELP_SHELL_PID, 87);
+    task_add(kelp_task_shell, KELP_SHELL_PID, 88);
 }
 
 int main() {

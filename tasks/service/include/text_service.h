@@ -32,6 +32,6 @@ int16_t kelp_text_send_output_string(const char* str, uint8_t len);
 
 char kelp_text_read_output_char();
 
-void kelp_task_text_service(uint32_t pid, uint32_t signals, char* args);
+void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args);
 
 #endif //KELPOS_LITE_TEXT_IO_H

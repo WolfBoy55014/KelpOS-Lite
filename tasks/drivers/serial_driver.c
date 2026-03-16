@@ -6,8 +6,19 @@
 
 #include "scheduler.h"
 
-void kelp_serial_driver(uint32_t pid, uint32_t signals, char* args) {
+void kelp_serial_driver(uint32_t pid, uint32_t* signals, char* args) {
+    uint32_t i = 0;
+
+
     while (1) {
+
+        if (i >= 100) {
+            // check signals
+            if (*signals & TASK_SIGTERM) {
+                return;
+            }
+        }
+
         // send input
         int c = getchar_timeout_us(0);
 
@@ -19,11 +30,13 @@ void kelp_serial_driver(uint32_t pid, uint32_t signals, char* args) {
 
         // get output
         c = kelp_text_read_output_char();
-        
+
         while (c != '\0') {
             putchar(c);
             c = kelp_text_read_output_char();
         }
+
+        i++;
 
         sleep_ms(1);
     }

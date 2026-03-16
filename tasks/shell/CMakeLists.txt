@@ -12,6 +12,7 @@ add_library(shell INTERFACE)
 target_sources(shell INTERFACE
         ${USH_SRC_FILES}
         shell.c
+        kelp_commands.c
 )
 
 target_include_directories(shell INTERFACE

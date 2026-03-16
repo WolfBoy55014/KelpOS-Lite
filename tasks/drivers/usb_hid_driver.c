@@ -18,7 +18,7 @@ static struct usb_keyboard_t usb_keyboards[USB_HID_MAX_KEYBOARDS];
 
 static void process_kbd_report(struct usb_keyboard_t* usb_keyboard, hid_keyboard_report_t const* report);
 
-void kelp_task_usb_hid(uint32_t pid, uint32_t signals, char* args) {
+void kelp_task_usb_hid(uint32_t pid, uint32_t* signals, char* args) {
     board_init();
     // TODO: get this to stop messing with the LED
 
@@ -134,6 +134,20 @@ static bool find_key_in_report(hid_keyboard_report_t const* report, uint8_t keyc
     return false;
 }
 
+static void update_kbd_leds(struct usb_keyboard_t* usb_keyboard) {
+    static uint8_t leds = 0;
+
+    leds = 0;
+    leds |= usb_keyboard->caps_lock ? KEYBOARD_LED_CAPSLOCK : 0;
+    leds |= usb_keyboard->num_lock ? KEYBOARD_LED_NUMLOCK : 0;
+    leds |= usb_keyboard->scroll_lock ? KEYBOARD_LED_SCROLLLOCK : 0;
+
+    tuh_hid_set_report(usb_keyboard->device.dev_addr, usb_keyboard->device.instance,
+                       0,  // report_id (0 for boot keyboard)
+                       HID_REPORT_TYPE_OUTPUT,
+                       &leds, 1);
+}
+
 static void process_kbd_report(struct usb_keyboard_t* usb_keyboard, hid_keyboard_report_t const* report) {
     for (uint8_t i = 0; i < 6; i++) {
         if (report->keycode[i]) {
@@ -142,7 +156,32 @@ static void process_kbd_report(struct usb_keyboard_t* usb_keyboard, hid_keyboard
             }
             else {
                 // the key is newly pressed
-                bool const is_shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
+
+                // handle special keys
+                switch (report->keycode[i]) {
+                case HID_KEY_CAPS_LOCK:
+                    usb_keyboard->caps_lock = !usb_keyboard->caps_lock;
+                    update_kbd_leds(usb_keyboard);
+                    continue;
+
+                case HID_KEY_NUM_LOCK:
+                    usb_keyboard->num_lock = !usb_keyboard->num_lock;
+                    update_kbd_leds(usb_keyboard);
+                    continue;
+
+                case HID_KEY_SCROLL_LOCK:
+                    usb_keyboard->scroll_lock = !usb_keyboard->scroll_lock;
+                    update_kbd_leds(usb_keyboard);
+                    continue;
+                }
+
+                bool is_shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
+
+                // reverse case if caps lock is on
+                if (usb_keyboard->caps_lock) {
+                    is_shift = !is_shift;
+                }
+
                 uint8_t ch = keycode2ascii[report->keycode[i]][is_shift ? 1 : 0];
                 kelp_text_send_input_char(ch);
             }

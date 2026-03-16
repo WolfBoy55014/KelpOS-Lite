@@ -163,7 +163,7 @@ char get_char_from_output_buffer() {
     return c;
 }
 
-void kelp_task_text_service(uint32_t pid, uint32_t signals, char* args) {
+void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
     while (1) {
         // get connected channels
         uint16_t channel_ids[NUM_CHANNELS];
