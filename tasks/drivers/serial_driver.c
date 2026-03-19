@@ -10,9 +10,7 @@
 void kelp_serial_driver(uint32_t pid, uint32_t* signals, char* args) {
     uint32_t l = 0;
 
-
     while (1) {
-
         if (l >= 100) {
             // check signals
             if (*signals & TASK_SIGTERM) {
@@ -34,7 +32,11 @@ void kelp_serial_driver(uint32_t pid, uint32_t* signals, char* args) {
             num_chars++;
         }
 
-        kelp_text_send_input_string(chars, num_chars);
+        if (num_chars == 1) {
+            kelp_text_send_input_char(chars[0]);
+        } else if (num_chars > 1) {
+            kelp_text_send_input_string(chars, num_chars);
+        }
 
         // get output
         c = kelp_text_read_output_char();
@@ -46,6 +48,6 @@ void kelp_serial_driver(uint32_t pid, uint32_t* signals, char* args) {
 
         l++;
 
-        sleep_ms(1);
+        task_sleep_ms(1);
     }
 }

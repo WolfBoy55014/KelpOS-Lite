@@ -71,7 +71,7 @@ const struct ush_file_descriptor g_ush_kelp_commands[] = {
     {
         .name = "cpu",
         .description = "get cpu related information",
-        .help = "usage: cpu <temp>\r\n",
+        .help = "usage: cpu <temp/usage/freq>\r\n",
         .exec = kelp_cmd_cpu_callback,
     },
 };

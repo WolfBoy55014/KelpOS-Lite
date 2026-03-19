@@ -14,7 +14,7 @@
 #include "text_service.h"
 #include "shell.h"
 
-void monitor_task(uint32_t pid) {
+void monitor_task(uint32_t pid, uint32_t* signals, char* args) {
     const uint8_t length = 20;
 
     while (true) {

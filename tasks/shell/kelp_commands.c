@@ -5,10 +5,13 @@
 #include <string.h>
 
 #include "scheduler.h"
+#include "scheduler_internal.h"
 #include "inc/ush.h"
 #include "inc/ush_types.h"
 
 #include "hardware/adc.h"
+#include "hardware/clocks.h"
+#include "hardware/structs/clocks.h"
 
 void kelp_cmd_signal_callback(struct ush_object *self, struct ush_file_descriptor const *file, int argc, char *argv[]) {
 
@@ -74,8 +77,10 @@ void kelp_cmd_signal_callback(struct ush_object *self, struct ush_file_descripto
 
 void kelp_cmd_cpu_callback(struct ush_object *self, struct ush_file_descriptor const *file, int argc, char *argv[]) {
 
-    char *subcommands[1] = {
+    char *subcommands[3] = {
         "temp",
+        "usage",
+        "freq",
     };
 
     if (argc < 2) {
@@ -83,7 +88,7 @@ void kelp_cmd_cpu_callback(struct ush_object *self, struct ush_file_descriptor c
         return;
     }
 
-    for (int i = 0; i < 1; i++) {
+    for (int i = 0; i < 3; i++) {
         if (strcmp(argv[1], subcommands[i]) == 0) {
             switch (i) {
             case 0:
@@ -100,7 +105,16 @@ void kelp_cmd_cpu_callback(struct ush_object *self, struct ush_file_descriptor c
 
                 ush_printf(self, "CPU Temp: %fC\n", temp);
                 break;
+            case 1:
+                for (uint8_t c = 0; c < CORE_COUNT; ++c) {
+                    uint8_t core_usage = get_core_usage(c);
 
+                    ush_printf(self, "Core %u Usage: %u\n", c, core_usage);
+                }
+                break;
+            case 2:
+                ush_printf(self, "System Clock: %lu kHz\n", clock_get_hz(clk_sys) / 1000);
+                break;
             default:
                 ush_print_status(self, USH_STATUS_ERROR_COMMAND_SYNTAX_ERROR);
             }
