@@ -22,6 +22,7 @@ target_include_directories(shell INTERFACE
 
 target_link_libraries(shell INTERFACE
         pico_stdlib
+        hardware_adc
         tasks_service
         rp2040_kernel
 )

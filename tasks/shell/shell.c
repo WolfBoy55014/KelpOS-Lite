@@ -7,6 +7,7 @@
 #include "microshell/src/microshell.h"
 
 extern void kelp_cmd_signal_callback(struct ush_object *self, struct ush_file_descriptor const *file, int argc, char *argv[]);
+extern void kelp_cmd_cpu_callback(struct ush_object *self, struct ush_file_descriptor const *file, int argc, char *argv[]);
 
 // non-blocking read interface
 static int ush_read(struct ush_object* self, char* ch) {
@@ -36,9 +37,9 @@ static const struct ush_io_interface ush_iface = {
     .write = ush_write,
 };
 
-#define BUF_IN_SIZE    32
-#define BUF_OUT_SIZE   32
-#define PATH_MAX_SIZE  32
+#define BUF_IN_SIZE    512
+#define BUF_OUT_SIZE   512
+#define PATH_MAX_SIZE  512
 
 static char ush_in_buf[BUF_IN_SIZE];
 static char ush_out_buf[BUF_OUT_SIZE];
@@ -66,6 +67,12 @@ const struct ush_file_descriptor g_ush_kelp_commands[] = {
         .description = "send a signal to a task",
         .help = "usage: sig [task id] [signal]\r\n",
         .exec = kelp_cmd_signal_callback,
+    },
+    {
+        .name = "cpu",
+        .description = "get cpu related information",
+        .help = "usage: cpu <temp>\r\n",
+        .exec = kelp_cmd_cpu_callback,
     },
 };
 
