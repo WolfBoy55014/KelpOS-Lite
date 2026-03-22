@@ -2,6 +2,8 @@
 // Created by wolfboy on 3/9/2026.
 //
 
+#include <string.h>
+
 #include "scheduler.h"
 #include "text_service.h"
 #include "microshell/src/microshell.h"
@@ -37,9 +39,9 @@ static const struct ush_io_interface ush_iface = {
     .write = ush_write,
 };
 
-#define BUF_IN_SIZE    512
-#define BUF_OUT_SIZE   512
-#define PATH_MAX_SIZE  512
+#define BUF_IN_SIZE    64
+#define BUF_OUT_SIZE   64
+#define PATH_MAX_SIZE  64
 
 static char ush_in_buf[BUF_IN_SIZE];
 static char ush_out_buf[BUF_OUT_SIZE];
