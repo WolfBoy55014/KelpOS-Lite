@@ -29,9 +29,21 @@ void kelp_task_usb_hid(uint32_t pid, uint32_t* signals, char* args) {
         board_init_after_tusb();
     }
 
+    uint32_t l = 0;
+
     while (1) {
+        if (l >= 100) {
+            // check signals
+            if (*signals & TASK_SIGTERM) {
+                tuh_deinit(BOARD_TUH_RHPORT);
+                return;
+            }
+        }
+
         // check for and process callbacks
         tuh_task();
+
+        l++;
 
         task_sleep_ms(2);
     }

@@ -164,7 +164,16 @@ char get_char_from_output_buffer() {
 }
 
 void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
+    uint32_t l = 0;
+
     while (1) {
+        if (l >= 100) {
+            // check signals
+            if (*signals & TASK_SIGTERM) {
+                return;
+            }
+        }
+
         // get connected channels
         uint16_t channel_ids[NUM_CHANNELS];
         int32_t num_connected = get_connected_channels(channel_ids, NUM_CHANNELS);
@@ -286,6 +295,9 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
                 }
             }
         }
+
+        l++;
+
         task_yield();
     }
 }

@@ -89,9 +89,21 @@ void kelp_task_shell(uint32_t pid, uint32_t* signals, char* args) {
     // mount root directory (root must be first)
     ush_node_mount(&ush, "/", &root, NULL, 0);
 
+    uint32_t l = 0;
+
     while (1) {
+        if (l >= 100) {
+            // check signals
+            if (*signals & TASK_SIGTERM) {
+                ush_deinit(&ush);
+                return;
+            }
+        }
+
         // non-blocking microshell service
         ush_service(&ush);
+
+        l++;
 
         task_sleep_ms(1);
     }
