@@ -38,6 +38,8 @@ void kelp_task_usb_hid(uint32_t pid, uint32_t* signals, char* args) {
                 tuh_deinit(BOARD_TUH_RHPORT);
                 return;
             }
+
+            l = 0;
         }
 
         // check for and process callbacks

@@ -10,6 +10,8 @@
 
 extern void kelp_cmd_signal_callback(struct ush_object *self, struct ush_file_descriptor const *file, int argc, char *argv[]);
 extern void kelp_cmd_cpu_callback(struct ush_object *self, struct ush_file_descriptor const *file, int argc, char *argv[]);
+extern void kelp_cmd_bench_callback(struct ush_object* self, struct ush_file_descriptor const* file, int argc, char* argv[]);
+extern void kelp_cmd_bench_service(struct ush_object *self, struct ush_file_descriptor const *file);
 
 // non-blocking read interface
 static int ush_read(struct ush_object* self, char* ch) {
@@ -76,6 +78,13 @@ const struct ush_file_descriptor g_ush_kelp_commands[] = {
         .help = "usage: cpu <temp/usage/freq>\r\n",
         .exec = kelp_cmd_cpu_callback,
     },
+    {
+        .name = "bench",
+        .description = "run the CoreMark benchmark",
+        .help = "usage: bench\r\n",
+        .exec = kelp_cmd_bench_callback,
+        .process = kelp_cmd_bench_service,
+    },
 };
 
 struct ush_node_object kelp_commands;
@@ -98,6 +107,8 @@ void kelp_task_shell(uint32_t pid, uint32_t* signals, char* args) {
                 ush_deinit(&ush);
                 return;
             }
+
+            l = 0;
         }
 
         // non-blocking microshell service

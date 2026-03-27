@@ -16,6 +16,8 @@ void kelp_serial_driver(uint32_t pid, uint32_t* signals, char* args) {
             if (*signals & TASK_SIGTERM) {
                 return;
             }
+
+            l = 0;
         }
 
         // send input

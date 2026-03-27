@@ -172,6 +172,8 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
             if (*signals & TASK_SIGTERM) {
                 return;
             }
+
+            l = 0;
         }
 
         // get connected channels

@@ -105,10 +105,11 @@ int main() {
     stdio_init_all();
 
     task_add(boot_task, 10, 255);
+    // task_add(monitor_task, 11, 88);
 
     kernel_start();
 
-    governor_set_mode(GOVERNOR_POWER_SAVE);
+    governor_set_mode(GOVERNOR_PERFORMANCE);
 
     while (true) {
         tight_loop_contents();

@@ -41,6 +41,8 @@ add_executable(KelpOS-Lite main.c
 pico_set_program_name(KelpOS-Lite "KelpOS-Lite")
 pico_set_program_version(KelpOS-Lite "0.1")
 
+# --- System Components ---
+
 # Add Kernel directory
 add_subdirectory(kernel/)
 
@@ -58,6 +60,11 @@ add_subdirectory(tasks/shell)
 
 # Add Libraries directory
 add_subdirectory(lib/)
+
+# -- Applications ---
+
+# Add Utility Apps directory
+add_subdirectory(tasks/applications/utility/)
 
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(KelpOS-Lite 1)
@@ -80,6 +87,7 @@ target_link_libraries(KelpOS-Lite
         tasks_service
         tasks_driver
         shell
+        app_coremark
         )
 
 pico_add_extra_outputs(KelpOS-Lite)

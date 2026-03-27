@@ -4,6 +4,7 @@
 
 #include <string.h>
 
+#include "coremark.h"
 #include "scheduler.h"
 #include "scheduler_internal.h"
 #include "inc/ush.h"
@@ -12,10 +13,10 @@
 #include "hardware/adc.h"
 #include "hardware/clocks.h"
 #include "hardware/structs/clocks.h"
+#include "inc/ush_internal.h"
 
-void kelp_cmd_signal_callback(struct ush_object *self, struct ush_file_descriptor const *file, int argc, char *argv[]) {
-
-    static char *signal_names[6] = {
+void kelp_cmd_signal_callback(struct ush_object* self, struct ush_file_descriptor const* file, int argc, char* argv[]) {
+    static char* signal_names[6] = {
         "sigterm",
         "sigkill",
         "sigstop",
@@ -30,7 +31,7 @@ void kelp_cmd_signal_callback(struct ush_object *self, struct ush_file_descripto
     }
 
     // get task id from arguments
-    char *endptr;
+    char* endptr;
     uint32_t task_id = strtoul(argv[1], &endptr, 10);
 
     if (*endptr != '\0') {
@@ -75,9 +76,8 @@ void kelp_cmd_signal_callback(struct ush_object *self, struct ush_file_descripto
     ush_print_status(self, USH_STATUS_OK);
 }
 
-void kelp_cmd_cpu_callback(struct ush_object *self, struct ush_file_descriptor const *file, int argc, char *argv[]) {
-
-    char *subcommands[3] = {
+void kelp_cmd_cpu_callback(struct ush_object* self, struct ush_file_descriptor const* file, int argc, char* argv[]) {
+    char* subcommands[3] = {
         "temp",
         "usage",
         "freq",
@@ -120,4 +120,65 @@ void kelp_cmd_cpu_callback(struct ush_object *self, struct ush_file_descriptor c
             }
         }
     }
+}
+
+void kelp_cmd_bench_callback(struct ush_object* self, struct ush_file_descriptor const* file, int argc, char* argv[]) {
+    ush_printf(self, "Starting CoreMark Benchmark...\n");
+    ush_process_start(self, file);
+}
+
+bool kelp_cmd_bench_service(struct ush_object* self, struct ush_file_descriptor const* file) {
+    (void)file;
+
+    USH_ASSERT(self != NULL);
+    USH_ASSERT(file != NULL);
+
+    bool processed = true;
+
+    static uint32_t pid = 0;
+
+    switch (self->state) {
+    case USH_STATE_PROCESS_START:
+        for (uint32_t p = 400; p < UINT32_MAX; p++) {
+            const int32_t error = task_add(coremark_task_main, p, 255);
+
+            if (error == -1) {
+                continue;
+            }
+
+            if (error < 0) {
+                ush_printf(self, "Error: couldn't create task\n");
+                self->state = USH_STATE_RESET_PROMPT;
+                break;
+            }
+
+            pid = p;
+            ush_printf(self, "Started CoreMark benchmark\n");
+            self->state = USH_STATE_PROCESS_SERVICE;
+            break;
+        }
+
+        break;
+    case USH_STATE_PROCESS_SERVICE:
+        // only continue if we have a valid pid to track
+        if (pid == 0) {
+            // no task was started, skip to finish
+            self->state = USH_STATE_PROCESS_FINISH;
+            break;
+        }
+
+        if (!task_exists(pid)) {
+            self->state = USH_STATE_PROCESS_FINISH;
+        }
+        break;
+    case USH_STATE_PROCESS_FINISH:
+        ush_printf(self, "Finished benchmark\n");
+        self->state = USH_STATE_RESET_PROMPT;
+        break;
+    default:
+        processed = false;
+        break;
+    }
+
+    return processed;
 }
