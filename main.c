@@ -89,6 +89,18 @@ void monitor_task(uint32_t pid, uint32_t* signals, char* args) {
     }
 }
 
+uint32_t use_stack(uint32_t i) {
+    task_sleep_ms(2);
+    uint32_t o = use_stack(i);
+    return ++o;
+}
+
+void use_stack_task(uint32_t pid, uint32_t* signals, char* args) {
+    uint32_t v = 0;
+    v = use_stack(0);
+    printf("%lu\n", v);
+}
+
 void boot_task(uint32_t pid, uint32_t* signals, char* args) {
     // start services
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);
@@ -99,6 +111,7 @@ void boot_task(uint32_t pid, uint32_t* signals, char* args) {
 
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
+    // task_add(use_stack_task, 12, 88);
 }
 
 int main() {
