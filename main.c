@@ -111,7 +111,6 @@ void boot_task(uint32_t pid, uint32_t* signals, char* args) {
 
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
-    // task_add(use_stack_task, 12, 88);
 }
 
 int main() {

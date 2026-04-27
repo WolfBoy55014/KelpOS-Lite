@@ -42,5 +42,6 @@
     "files.associations": {
         "kernel_config.h": "c",
         "governor.h": "c"
-    }
+    },
+    "cortex-debug.variableUseNaturalFormat": true
 }
