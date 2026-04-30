@@ -98,6 +98,8 @@ void kelp_task_shell(uint32_t pid, uint32_t* signals, char* args) {
     // mount root directory (root must be first)
     ush_node_mount(&ush, "/", &root, NULL, 0);
 
+    task_request_stack(128);
+
     uint32_t l = 0;
 
     while (1) {

@@ -164,6 +164,8 @@ char get_char_from_output_buffer() {
 }
 
 void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
+    task_request_stack(128);
+
     uint32_t l = 0;
 
     while (1) {

@@ -23,6 +23,7 @@ Original Author: Shay Gal-on
 #include <stdint.h>
 
 #include "coremark.h"
+#include "scheduler.h"
 
 /* Function: iterate
         Run the benchmark for a specified number of iterations.
@@ -114,9 +115,15 @@ coremark_task_main(uint32_t pid, uint32_t* signals, char* args)
     char *argv[1];
 #else
 MAIN_RETURN_TYPE
-main(int argc, char *argv[])
+coremark_task_main(uint32_t pid, uint32_t* signals, char* args)
 {
 #endif
+    if (!task_request_stack(1024)) {
+        ee_printf("Failed to acquire stack space. Exiting.");
+        task_sleep_ms(5000);
+        return;
+    }
+
     ee_u16       i, j = 0, num_algorithms = 0;
     ee_s16       known_id = -1, total_errors = 0;
     ee_u16       seedcrc = 0;
