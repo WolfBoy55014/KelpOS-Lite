@@ -19,112 +19,126 @@ char output_text_buffer[TEXT_BUFFER_SIZE];
 uint16_t output_text_buffer_front = 0;
 uint16_t output_text_buffer_back = 0;
 
-int8_t kelp_text_send_input_char(const char c) {
-    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
-    if (channel_id < 0) {
-        return channel_id;
-    }
-
-    int8_t error = com_send_char_blocking(channel_id, c, REASON_TEXT_SEND_INPUT_CHAR);
-    if (error < 0) {
+kelp_error_t kelp_text_send_input_char(const char c) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(TEXT_SERVICE_PID, true, &channel_id);
+    if (error != KELP_OK) {
         return error;
     }
 
-    return 0;
-}
-
-int16_t kelp_text_send_input_string(const char* str, const uint8_t len) {
-    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
-    if (channel_id < 0) {
-        return channel_id;
-    }
-
-    int8_t error = com_send_char_array_fast_blocking(channel_id, str, len, REASON_TEXT_SEND_INPUT_STR);
-    if (error < 0) {
+    error = com_send_char_blocking(channel_id, c, REASON_TEXT_SEND_INPUT_CHAR);
+    if (error != KELP_OK) {
         return error;
     }
 
-    return 0;
+    return KELP_OK;
 }
 
-char kelp_text_read_input_char() {
+kelp_error_t kelp_text_send_input_string(const char* str, const uint8_t len) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(TEXT_SERVICE_PID, true, &channel_id);
+    if (error != KELP_OK) {
+        return error;
+    }
+
+    error = com_send_char_array_fast_blocking(channel_id, str, len, REASON_TEXT_SEND_INPUT_STR);
+    if (error != KELP_OK) {
+        return error;
+    }
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_text_read_input_char(char* c) {
     // send request
 
-    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
-    if (channel_id < 0) {
-        return '\0';
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(TEXT_SERVICE_PID, true , &channel_id);
+    if (error != KELP_OK) {
+        return error;
     }
 
-    int8_t error = com_send_request_blocking(channel_id, REASON_TEXT_READ_INPUT_CHAR);
-    if (error < 0) {
-        return '\0';
+    error = com_send_request_blocking(channel_id, REASON_TEXT_READ_INPUT_CHAR);
+    if (error != KELP_OK) {
+        return error;
     }
 
     // get result
 
-    char c = '\0';
+    *c = '\0';
     uint16_t reason;
 
-    error = com_get_char_blocking(channel_id, &c, &reason);
-    if ((error < 0) || (reason != REASON_TEXT_READ_INPUT_CHAR)) {
-        return '\0';
-    }
-
-    return c;
-}
-
-int8_t kelp_text_send_output_char(const char c) {
-    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
-    if (channel_id < 0) {
-        return channel_id;
-    }
-
-    int8_t error = com_send_char_blocking(channel_id, c, REASON_TEXT_SEND_OUTPUT_CHAR);
-    if (error < 0) {
+    error = com_get_char_blocking(channel_id, c, &reason);
+    if (error != KELP_OK) {
         return error;
     }
 
-    return 0;
-}
-
-int16_t kelp_text_send_output_string(const char* str, const uint8_t len) {
-    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
-    if (channel_id < 0) {
-        return channel_id;
+    if (reason != REASON_TEXT_READ_INPUT_CHAR) {
+        return KELP_PROTOCOL;
     }
 
-    int8_t error = com_send_char_array_fast_blocking(channel_id, str, len, REASON_TEXT_SEND_OUTPUT_STR);
-    if (error < 0) {
+    return KELP_OK;
+}
+
+kelp_error_t kelp_text_send_output_char(const char c) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(TEXT_SERVICE_PID, true, &channel_id);
+    if (error != KELP_OK) {
         return error;
     }
 
-    return 0;
+    error = com_send_char_blocking(channel_id, c, REASON_TEXT_SEND_OUTPUT_CHAR);
+    if (error != KELP_OK) {
+        return error;
+    }
+
+    return KELP_OK;
 }
 
-char kelp_text_read_output_char() {
+kelp_error_t kelp_text_send_output_string(const char* str, const uint8_t len) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(TEXT_SERVICE_PID, true, &channel_id);
+    if (error != KELP_OK) {
+        return error;
+    }
+
+    error = com_send_char_array_fast_blocking(channel_id, str, len, REASON_TEXT_SEND_OUTPUT_STR);
+    if (error != KELP_OK) {
+        return error;
+    }
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_text_read_output_char(char* c) {
     // send request
 
-    int32_t channel_id = com_channel_request_blocking(TEXT_SERVICE_PID, true);
-    if (channel_id < 0) {
-        return '\0';
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(TEXT_SERVICE_PID, true, &channel_id);
+    if (error != KELP_OK) {
+        return error;
     }
 
-    int8_t error = com_send_request_blocking(channel_id, REASON_TEXT_READ_OUTPUT_CHAR);
-    if (error < 0) {
-        return '\0';
+    error = com_send_request_blocking(channel_id, REASON_TEXT_READ_OUTPUT_CHAR);
+    if (error != KELP_OK) {
+        return error;
     }
 
     // get result
 
-    char c = '\0';
+    *c = '\0';
     uint16_t reason;
 
-    error = com_get_char_blocking(channel_id, &c, &reason);
-    if ((error < 0) || (reason != REASON_TEXT_READ_OUTPUT_CHAR)) {
-        return '\0';
+    error = com_get_char_blocking(channel_id, c, &reason);
+    if (error != KELP_OK) {
+        return error;
     }
 
-    return c;
+    if (reason != REASON_TEXT_READ_OUTPUT_CHAR) {
+        return KELP_PROTOCOL;
+    }
+
+    return KELP_OK;
 }
 
 void add_char_to_input_buffer(const char c) {
@@ -180,7 +194,13 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
 
         // get connected channels
         uint16_t channel_ids[NUM_CHANNELS];
-        int32_t num_connected = get_connected_channels(channel_ids, NUM_CHANNELS);
+        uint16_t num_connected = 0;
+        kelp_error_t error = get_connected_channels(channel_ids, &num_connected, NUM_CHANNELS);
+
+        if (error != KELP_OK) {
+            task_sleep_ms(5);
+            continue;
+        }
 
         // check for messages
         for (int c = 0; c < num_connected; c++) {
@@ -188,7 +208,11 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
 
             // can we read from this channel?
             if (is_channel_ready_to_read(channel_id)) {
-                uint8_t content_type = com_channel_peek(channel_id);
+                uint8_t content_type = 0;
+                error = com_channel_peek(channel_id, &content_type);
+                if (error != KELP_OK) {
+                    continue;
+                }
 
                 // does this channel contain a char?
                 if (content_type == COM_TYPE_CHAR) {
@@ -196,8 +220,8 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
                     uint16_t reason = 0;
                     char received_char = '\0';
 
-                    int8_t error = com_get_char(channel_id, &received_char, &reason);
-                    if (error < 0) {
+                    error = com_get_char(channel_id, &received_char, &reason);
+                    if (error != KELP_OK) {
                         continue;
                     }
 
@@ -231,8 +255,8 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
                     uint16_t size = 0;
                     char received_chars[CHANNEL_SIZE] = {'\0'};
 
-                    int8_t error = com_get_char_array_fast(channel_id, &received_chars, &size, &reason);
-                    if (error < 0) {
+                    error = com_get_char_array_fast(channel_id, &received_chars, &size, &reason);
+                    if (error != KELP_OK) {
                         continue;
                     }
 
@@ -268,8 +292,8 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
                     // get the reason
                     uint16_t reason = 0;
 
-                    int8_t error = com_get_request(channel_id, &reason);
-                    if (error < 0) {
+                    error = com_get_request(channel_id, &reason);
+                    if (error != KELP_OK) {
                         continue;
                     }
 
@@ -280,7 +304,7 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
                         char character = get_char_from_input_buffer();
 
                         error = com_send_char_blocking(channel_id, character, REASON_TEXT_READ_INPUT_CHAR);
-                        if (error < 0) {
+                        if (error != KELP_OK) {
                             continue;
                         }
                     }
@@ -292,7 +316,7 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
                         char character = get_char_from_output_buffer();
 
                         error = com_send_char_blocking(channel_id, character, REASON_TEXT_READ_OUTPUT_CHAR);
-                        if (error < 0) {
+                        if (error != KELP_OK) {
                             continue;
                         }
                     }

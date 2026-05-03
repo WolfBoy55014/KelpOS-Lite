@@ -15,9 +15,10 @@ extern void kelp_cmd_bench_service(struct ush_object *self, struct ush_file_desc
 
 // non-blocking read interface
 static int ush_read(struct ush_object* self, char* ch) {
-    char c = kelp_text_read_input_char();
+    char c = '\0';
+    kelp_error_t error = kelp_text_read_input_char(&c);
 
-    if (c != '\0') {
+    if (error == KELP_OK && c != '\0') {
         *ch = c;
         return 1;
     }
@@ -27,8 +28,8 @@ static int ush_read(struct ush_object* self, char* ch) {
 
 // non-blocking write interface
 static int ush_write(struct ush_object* self, char ch) {
-
-    if (kelp_text_send_output_char(ch) == 0) {
+    // TODO: Fill a buffer before sending
+    if (kelp_text_send_output_char(ch) == KELP_OK) {
         return 1;
     }
 

@@ -118,7 +118,7 @@ MAIN_RETURN_TYPE
 coremark_task_main(uint32_t pid, uint32_t* signals, char* args)
 {
 #endif
-    if (!task_request_stack(1024)) {
+    if (task_request_stack(1024) == KELP_ERROR) {
         ee_printf("Failed to acquire stack space. Exiting.");
         task_sleep_ms(5000);
         return;

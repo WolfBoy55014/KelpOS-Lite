@@ -20,17 +20,21 @@
 
 #include <stdint.h>
 
-int8_t kelp_text_send_input_char(char c);
+#include "error_codes.h"
 
-int16_t kelp_text_send_input_string(const char* str, uint8_t len);
+// TODO: Make Docstrings
 
-char kelp_text_read_input_char();
+kelp_error_t kelp_text_send_input_char(char c);
 
-int8_t kelp_text_send_output_char(char c);
+kelp_error_t kelp_text_send_input_string(const char* str, uint8_t len);
 
-int16_t kelp_text_send_output_string(const char* str, uint8_t len);
+kelp_error_t kelp_text_read_input_char(char* c);
 
-char kelp_text_read_output_char();
+kelp_error_t kelp_text_send_output_char(char c);
+
+kelp_error_t kelp_text_send_output_string(const char* str, uint8_t len);
+
+kelp_error_t kelp_text_read_output_char(char* c);
 
 void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args);
 

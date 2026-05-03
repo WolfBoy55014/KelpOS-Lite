@@ -45,11 +45,12 @@ void kelp_serial_driver(uint32_t pid, uint32_t* signals, char* args) {
         }
 
         // get output
-        c = kelp_text_read_output_char();
+        char co = '\0';
+        kelp_error_t error = kelp_text_read_output_char(&co);
 
-        while (c != '\0') {
-            putchar(c);
-            c = kelp_text_read_output_char();
+        while (co != '\0' && error == KELP_OK) {
+            putchar(co);
+            error = kelp_text_read_output_char(&co);
         }
 
         l++;
