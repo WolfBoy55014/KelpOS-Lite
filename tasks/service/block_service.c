@@ -207,6 +207,6 @@ void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
 
         l++;
 
-        task_yield();
+        task_sleep_us(250);
     }
 }

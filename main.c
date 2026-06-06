@@ -105,7 +105,7 @@ void use_stack_task(uint32_t pid, uint32_t* signals, char* args) {
 void system_task(uint32_t pid, uint32_t* signals, char* args) {
     // start services
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);
-    // task_add(kelp_task_block_service, BLOCK_SERVICE_PID, 88);
+    task_add(kelp_task_block_service, BLOCK_SERVICE_PID, 88);
 
     // start drivers
     task_add(kelp_task_usb_hid, USB_HID_DRIVER_PID, 88);
@@ -123,7 +123,7 @@ int main() {
     stdio_init_all();
 
     task_add(system_task, 10, 255);
-    task_add(monitor_task, 11, 88);
+    // task_add(monitor_task, 11, 88);
 
     kernel_start();
 

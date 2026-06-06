@@ -28,6 +28,10 @@ struct block_driver_t {
     uint32_t size;
 };
 
+kelp_error_t kelp_block_mount_device();
+
+kelp_error_t kelp_block_unmount_device();
+
 kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t *size, uint32_t address, uint32_t count);
 
 kelp_error_t kelp_block_read_byte(uint8_t device_id, uint32_t address);
