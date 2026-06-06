@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include "block_service.h"
 #include "channel.h"
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
@@ -101,9 +102,10 @@ void use_stack_task(uint32_t pid, uint32_t* signals, char* args) {
     printf("%lu\n", v);
 }
 
-void boot_task(uint32_t pid, uint32_t* signals, char* args) {
+void system_task(uint32_t pid, uint32_t* signals, char* args) {
     // start services
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);
+    // task_add(kelp_task_block_service, BLOCK_SERVICE_PID, 88);
 
     // start drivers
     task_add(kelp_task_usb_hid, USB_HID_DRIVER_PID, 88);
@@ -111,13 +113,17 @@ void boot_task(uint32_t pid, uint32_t* signals, char* args) {
 
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
+
+    while (1) {
+        task_sleep_ms(1000);
+    }
 }
 
 int main() {
     stdio_init_all();
 
-    task_add(boot_task, 10, 255);
-    // task_add(monitor_task, 11, 88);
+    task_add(system_task, 10, 255);
+    task_add(monitor_task, 11, 88);
 
     kernel_start();
 
