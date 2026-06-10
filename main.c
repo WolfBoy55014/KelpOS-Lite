@@ -10,6 +10,7 @@
 #include "governor.h"
 #include "usb_hid_driver.h"
 #include "com_channel_protocol.h"
+#include "sd_card_driver.h"
 #include "serial_driver.h"
 #include "hardware/clocks.h"
 #include "text_service.h"
@@ -110,6 +111,7 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     // start drivers
     task_add(kelp_task_usb_hid, USB_HID_DRIVER_PID, 88);
     task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 88);
+    // task_add(kelp_task_sd_card, SD_CARD_DRIVER_PID, 88);
 
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
