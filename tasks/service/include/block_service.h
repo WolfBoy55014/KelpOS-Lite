@@ -7,7 +7,7 @@
 
 #define BLOCK_SERVICE_PID 201
 
-#define BLOCK_SERVICE_NUM_DEVICES 4
+#define BLOCK_SERVICE_MAX_DEVICES 4
 
 #define REASON_BLOCK_MOUNT 8975
 #define REASON_BLOCK_UNMOUNT 54365
@@ -28,9 +28,9 @@ struct block_driver_t {
     uint32_t size;
 };
 
-kelp_error_t kelp_block_mount_device();
+kelp_error_t kelp_block_mount_device(uint8_t* device_id, uint32_t block_size, uint32_t block_count);
 
-kelp_error_t kelp_block_unmount_device();
+kelp_error_t kelp_block_unmount_device(uint8_t device_id);
 
 kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t *size, uint32_t address, uint32_t count);
 

@@ -203,7 +203,7 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
         }
 
         // check for messages
-        for (int c = 0; c < num_connected; c++) {
+        for (uint32_t c = 0; c < num_connected; c++) {
             uint16_t channel_id = channel_ids[c];
 
             // can we read from this channel?

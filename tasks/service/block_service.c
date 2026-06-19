@@ -8,16 +8,27 @@
 #include "com_channel_protocol.h"
 #include "scheduler.h"
 
-static struct block_driver_t block_drivers[BLOCK_SERVICE_NUM_DEVICES];
+static struct block_driver_t block_drivers[BLOCK_SERVICE_MAX_DEVICES];
 
-kelp_error_t kelp_block_mount_device() {
+kelp_error_t kelp_block_mount_device(uint8_t* device_id, uint32_t block_size, uint32_t block_count) {
     uint16_t channel_id = 0;
     kelp_error_t error = com_channel_request_blocking(BLOCK_SERVICE_PID, true, &channel_id);
     if (error != KELP_OK) {
         return error;
     }
 
-    error = com_send_request_blocking(channel_id, REASON_BLOCK_MOUNT);
+    char data[8] = {
+        block_size >> 24,
+        block_size >> 16,
+        block_size >> 8,
+        block_size,
+        block_count >> 24,
+        block_count >> 16,
+        block_count >> 8,
+        block_count
+    };
+
+    error = com_send_char_array_fast_blocking(channel_id, data, 8, REASON_BLOCK_MOUNT);
     if (error != KELP_OK) {
         return error;
     }
@@ -40,17 +51,19 @@ kelp_error_t kelp_block_mount_device() {
         return KELP_NONE_FREE;
     }
 
+    *device_id = (uint8_t) return_code;
+
     return KELP_OK;
 }
 
-kelp_error_t kelp_block_unmount_device() {
+kelp_error_t kelp_block_unmount_device(uint8_t device_id) {
     uint16_t channel_id = 0;
     kelp_error_t error = com_channel_request_blocking(BLOCK_SERVICE_PID, true, &channel_id);
     if (error != KELP_OK) {
         return error;
     }
 
-    error = com_send_request_blocking(channel_id, REASON_BLOCK_UNMOUNT);
+    error = com_send_uint32_blocking(channel_id, device_id, REASON_BLOCK_UNMOUNT);
     if (error != KELP_OK) {
         return error;
     }
@@ -108,33 +121,57 @@ kelp_error_t kelp_block_clear_driver(struct block_driver_t* driver) {
     return KELP_OK;
 }
 
-kelp_error_t kelp_block_mount(uint32_t pid) {
-    for (uint8_t bd = 0; bd < BLOCK_SERVICE_NUM_DEVICES; bd++) {
+kelp_error_t kelp_block_mount(uint8_t* device_id, uint32_t pid, uint32_t block_size, uint32_t block_count) {
+    for (uint8_t bd = 0; bd < BLOCK_SERVICE_MAX_DEVICES; bd++) {
         struct block_driver_t* driver = &block_drivers[bd];
         if (driver->pid == 0) {
             driver->pid = pid;
+            driver->block_size = block_size;
+            driver->block_count = block_count;
+            driver->size = block_count * block_size;
+            *device_id = bd;
             return KELP_OK;
         }
     }
     return KELP_NONE_FREE;
 }
 
-kelp_error_t kelp_block_unmount(uint32_t pid) {
-    for (uint8_t bd = 0; bd < BLOCK_SERVICE_NUM_DEVICES; bd++) {
-        struct block_driver_t* driver = &block_drivers[bd];
-        if (driver->pid == pid) {
-            kelp_block_clear_driver(driver);
-            return KELP_OK;
-        }
+kelp_error_t kelp_block_unmount(uint32_t pid, uint8_t device_id) {
+    struct block_driver_t* driver = &block_drivers[device_id];
+    if (driver->pid == pid) {
+        kelp_block_clear_driver(driver);
+        return KELP_OK;
     }
     return KELP_NO_TASK;
+}
+
+void handle_mount_request(kelp_error_t* error, uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
+    int32_t return_code = 0;
+
+    if (size != 8) {
+        return_code = -2;
+    } else {
+        uint32_t block_size = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3];
+        uint32_t block_count = data[4] << 24 | data[5] << 16 | data[6] << 8 | data[7];
+
+        uint8_t device_id = 0;
+        *error = kelp_block_mount(&device_id, get_channel_partner_pid(channel_id), block_size, block_count);
+
+        if (*error == KELP_NONE_FREE) {
+            return_code = -1;
+        } else {
+            return_code = device_id;
+        }
+    }
+
+    com_send_int32_blocking(channel_id, return_code, REASON_BLOCK_MOUNT);
 }
 
 void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
 
     uint32_t l = 0;
 
-    for (uint32_t i = 0; i < BLOCK_SERVICE_NUM_DEVICES; i++) {
+    for (uint32_t i = 0; i < BLOCK_SERVICE_MAX_DEVICES; i++) {
         struct block_driver_t* driver = &block_drivers[i];
         kelp_block_clear_driver(driver);
     }
@@ -160,7 +197,7 @@ void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
         }
 
         // check for messages
-        for (int c = 0; c < num_connected; c++) {
+        for (uint32_t c = 0; c < num_connected; c++) {
             uint16_t channel_id = channel_ids[c];
 
             // can we read from this channel?
@@ -171,35 +208,23 @@ void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
                     continue;
                 }
 
-                // does this channel contain a request?
-                if (content_type == COM_TYPE_REQ) {
+                // does this channel contain an array?
+                if (content_type == COM_TYPE_ARRAY) {
                     // get the reason
                     uint16_t reason = 0;
 
-                    error = com_get_request(channel_id, &reason);
+                    char data[CHANNEL_SIZE];
+                    uint16_t size;
+
+                    error = com_get_char_array_fast(channel_id, &data, &size, &reason);
                     if (error != KELP_OK) {
                         continue;
                     }
 
                     // do they want to mount a device?
                     if (reason == REASON_BLOCK_MOUNT) {
-                        error = kelp_block_mount(get_channel_partner_pid(channel_id));
-
-                        // send confirmation of mounting
-                        int32_t return_code = 0;
-                        if (error == KELP_NONE_FREE) {
-                            return_code = -1;
-                        }
-
-                        error = com_send_int32_blocking(channel_id, return_code, REASON_BLOCK_MOUNT);
-                        if (error != KELP_OK) {
-                            continue;
-                        }
-                    }
-
-                    // do they want to unmount a device?
-                    else if (reason == REASON_BLOCK_UNMOUNT) {
-                        kelp_block_unmount(get_channel_partner_pid(channel_id));
+                        // attempt to mount it
+                        handle_mount_request(&error, channel_id, data, size);
                     }
                 }
             }

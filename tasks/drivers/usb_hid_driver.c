@@ -18,7 +18,7 @@ static struct usb_keyboard_t usb_keyboards[USB_HID_MAX_KEYBOARDS];
 
 static void process_kbd_report(struct usb_keyboard_t* usb_keyboard, hid_keyboard_report_t const* report);
 
-void kelp_task_usb_hid(uint32_t pid, uint32_t* signals, char* args) {
+void kelp_task_usb_hid_driver(uint32_t pid, uint32_t* signals, char* args) {
     board_init();
     // TODO: get this to stop messing with the LED
 
