@@ -102,6 +102,48 @@ void use_stack_task(uint32_t pid, uint32_t* signals, char* args) {
     printf("%lu\n", v);
 }
 
+void disk_speed_task(uint32_t pid, uint32_t* signals, char* args) {
+
+    task_sleep_ms(5000);
+
+    printf("Starting Speed Test\n");
+
+    uint32_t sector = 0;
+    uint32_t duration = 10;
+    uint32_t start = time_us_32();
+    uint32_t last = time_us_32();
+    uint32_t end = start + duration * 1000000;
+    uint32_t num_sectors = 100000;
+    for (sector = 0; sector < num_sectors; sector += 8) {
+        uint8_t buffer[4096];
+        uint32_t bytes_read = 0;
+        kelp_error_t error = kelp_block_read_bytes(0, buffer, sizeof(buffer), &bytes_read, sector, 8);
+
+        if (bytes_read != 4096) {
+            printf("Error reading: tried to read %u bytes but got %lu\n", sizeof(buffer), bytes_read);
+            return;
+        }
+
+        if (error != KELP_OK) {
+            printf("Error reading: %ld\n", error);
+            return;
+        }
+
+        printf("Sector %lu took %lu ms to read\n", sector, (time_us_32() - last) / 1000);
+        last = time_us_32();
+
+        if (time_us_32() > end) {
+            break;
+        }
+    }
+
+    uint32_t bytes_read = sector * 512;
+    double bytes_per_sec = (double) bytes_read / (double) duration;
+
+    printf("Read %lu sectors\n", sector);
+    printf("Bytes per second: %f\n", bytes_per_sec);
+}
+
 void system_task(uint32_t pid, uint32_t* signals, char* args) {
     // start services
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);
@@ -110,10 +152,12 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     // start drivers
     task_add(kelp_task_usb_hid_driver, USB_HID_DRIVER_PID, 88);
     task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 88);
-    task_add(kelp_task_sd_card_driver, SD_CARD_DRIVER_PID, 89);
+    task_add(kelp_task_sd_card_driver, SD_CARD_DRIVER_PID, 88);
 
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
+
+    task_add(disk_speed_task, 12, 88);
 
     while (1) {
         task_sleep_ms(1000);

@@ -13,7 +13,6 @@
 #include <stdint.h>
 
 struct sd_driver_details_t {
-    uint32_t card_id;
     bool initialized;
     uint32_t block_count;
     uint32_t size;

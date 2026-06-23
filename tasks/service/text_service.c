@@ -74,7 +74,7 @@ kelp_error_t kelp_text_read_input_char(char* c) {
     }
 
     if (reason != REASON_TEXT_READ_INPUT_CHAR) {
-        return KELP_PROTOCOL;
+        return KELP_WRONG_REASON;
     }
 
     return KELP_OK;
@@ -135,7 +135,7 @@ kelp_error_t kelp_text_read_output_char(char* c) {
     }
 
     if (reason != REASON_TEXT_READ_OUTPUT_CHAR) {
-        return KELP_PROTOCOL;
+        return KELP_WRONG_REASON;
     }
 
     return KELP_OK;

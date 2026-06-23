@@ -13,6 +13,7 @@
 #define REASON_BLOCK_UNMOUNT 54365
 #define REASON_BLOCK_SET_BLOCK_SIZE 8647
 #define REASON_BLOCK_SET_BLOCK_COUNT 43262
+#define REASON_BLOCK_ERROR 4908
 
 #define REASON_BLOCK_READ_BYTES 9346
 #define REASON_BLOCK_READ_BYTE  39487
@@ -21,8 +22,8 @@
 
 #include "error_codes.h"
 
-struct block_driver_t {
-    uint32_t pid;
+struct block_device_t {
+    uint32_t driver_pid;
     uint32_t block_size;
     uint32_t block_count;
     uint32_t size;
@@ -32,9 +33,7 @@ kelp_error_t kelp_block_mount_device(uint8_t* device_id, uint32_t block_size, ui
 
 kelp_error_t kelp_block_unmount_device(uint8_t device_id);
 
-kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t *size, uint32_t address, uint32_t count);
-
-kelp_error_t kelp_block_read_byte(uint8_t device_id, uint32_t address);
+kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_read, uint32_t start, uint32_t count);
 
 void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args);
 

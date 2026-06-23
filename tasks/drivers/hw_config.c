@@ -40,8 +40,8 @@ static sd_sdio_if_t sdio_if = {
 
 /* Configuration of the SD Card socket object */
 static sd_card_t sd_card = {
-    .type = SD_IF_SDIO,
-    .sdio_if_p = &sdio_if,
+    .type = SD_IF_SPI,
+    .spi_if_p = &spi_if,
     .use_card_detect = true,
     .card_detect_gpio = 26,
     .card_detected_true = true
