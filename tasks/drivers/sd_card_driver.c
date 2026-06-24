@@ -22,9 +22,9 @@ uint32_t sd_bound_count(uint8_t sd_id, uint32_t start, uint32_t count) {
     uint32_t end = start + count;
     if (end <= details->block_count) {
         return count;
-    } else {
-        return count - (end - details->block_count);
     }
+
+    return count - (end - details->block_count);
 }
 
 kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
@@ -58,7 +58,6 @@ kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_
 }
 
 void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
-
     task_request_stack(2048);
 
     uint32_t l = 0;
@@ -182,48 +181,4 @@ void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
 
         task_sleep_us(250);
     }
-
-    // uint8_t drive_id = 0;
-    // sd_card_t *sd_card_p = sd_get_by_num(drive_id);
-    //
-    // if (!sd_card_p) {
-    //     return;
-    // }
-    //
-    // while (!sd_card_detect(sd_card_p)) {
-    //     task_sleep_ms(1000);
-    // }
-    //
-    // if (!sd_card_p->init(sd_card_p)) {
-    //     return;
-    // }
-    //
-    // const uint32_t num_sectors = sd_card_p->get_num_sectors(sd_card_p);
-    //
-    // printf("\nNumber of sectors on card: %lu\n", num_sectors);
-    // printf("Starting Speed Test\n");
-    //
-    // uint32_t sector = 0;
-    // uint32_t duration = 10;
-    // uint32_t start = time_us_32();
-    // uint32_t end = start + duration * 1000000;
-    // for (sector = 0; sector < num_sectors; sector += 8) {
-    //     uint8_t buffer[4096];
-    //     block_dev_err_t rc = sd_card_p->read_blocks(sd_card_p, buffer, sector, 8);
-    //
-    //     if (rc != SD_BLOCK_DEVICE_ERROR_NONE) {
-    //         printf("Error reading sector %lu\n", sector);
-    //         return;
-    //     }
-    //
-    //     if (time_us_32() > end) {
-    //         break;
-    //     }
-    // }
-    //
-    // uint32_t bytes_read = sector * 512;
-    // double bytes_per_sec = (double) bytes_read / (double) duration;
-    //
-    // printf("Read %lu sectors\n", sector);
-    // printf("Bytes per second: %f\n", bytes_per_sec);
 }

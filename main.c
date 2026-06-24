@@ -111,7 +111,6 @@ void disk_speed_task(uint32_t pid, uint32_t* signals, char* args) {
     uint32_t sector = 0;
     uint32_t duration = 10;
     uint32_t start = time_us_32();
-    uint32_t last = time_us_32();
     uint32_t end = start + duration * 1000000;
     uint32_t num_sectors = 100000;
     for (sector = 0; sector < num_sectors; sector += 8) {
@@ -129,8 +128,7 @@ void disk_speed_task(uint32_t pid, uint32_t* signals, char* args) {
             return;
         }
 
-        printf("Sector %lu took %lu ms to read\n", sector, (time_us_32() - last) / 1000);
-        last = time_us_32();
+        printf("time: %u\n", (get_core_usage(0) + get_core_usage(1)) / 2);
 
         if (time_us_32() > end) {
             break;
@@ -145,14 +143,16 @@ void disk_speed_task(uint32_t pid, uint32_t* signals, char* args) {
 }
 
 void system_task(uint32_t pid, uint32_t* signals, char* args) {
+    task_request_stack(256);
+
     // start services
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);
-    task_add(kelp_task_block_service, BLOCK_SERVICE_PID, 88);
+    task_add(kelp_task_block_service, BLOCK_SERVICE_PID, 89);
 
     // start drivers
     task_add(kelp_task_usb_hid_driver, USB_HID_DRIVER_PID, 88);
     task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 88);
-    task_add(kelp_task_sd_card_driver, SD_CARD_DRIVER_PID, 88);
+    task_add(kelp_task_sd_card_driver, SD_CARD_DRIVER_PID, 89);
 
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
