@@ -57,6 +57,47 @@ kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_
     return KELP_OK;
 }
 
+kelp_error_t kelp_sd_handle_write_request(uint16_t channel_id, char* data, uint16_t size) {
+    if (size != 9) {
+        return KELP_PROTOCOL;
+    } else {
+        uint8_t device_id = data[0];
+        uint8_t sd_id = device_id_2_sd_id[device_id];
+        sd_card_t* sd_card_p = sd_get_by_num(sd_id);
+
+        uint32_t start = data[1] | data[2] << 8 | data[3] << 16 | data[4] << 24;    // starting block
+        uint32_t count = data[5] | data[6] << 8 | data[7] << 16 | data[8] << 24;    // number of provided blocks
+        uint32_t buffer_size = count * 512;                                         // the size of the return buffer in bytes
+
+        // get buffer to write
+        uint8_t buffer[buffer_size];
+        uint32_t received_buffer_size = 0;
+        uint16_t reason;
+        kelp_error_t error = com_get_char_array_blocking(channel_id, buffer, buffer_size, &received_buffer_size, &reason);
+        KELP_RETURN_ON_ERROR(error);
+        if (reason != REASON_BLOCK_WRITE_BYTES) {
+            return KELP_WRONG_REASON;
+        }
+        if (buffer_size != received_buffer_size) {
+            return KELP_PROTOCOL; // the buffer must be big enough to fill the requested blocks
+        }
+
+        block_dev_err_t rc = sd_card_p->write_blocks(sd_card_p, buffer, start, count);
+
+        if (rc != SD_BLOCK_DEVICE_ERROR_NONE) {
+            // printf("Error writing sector %lu\n", start);
+            return KELP_IO;
+        }
+
+        int64_t response = buffer_size;
+
+        // send response to task
+        error = com_send_int64_blocking(channel_id, response, REASON_BLOCK_WRITE_BYTES);
+        KELP_RETURN_ON_ERROR(error);
+    }
+    return KELP_OK;
+}
+
 void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
     task_request_stack(2048);
 

@@ -118,13 +118,13 @@ void disk_speed_task(uint32_t pid, uint32_t* signals, char* args) {
         uint32_t bytes_read = 0;
         kelp_error_t error = kelp_block_read_bytes(0, buffer, sizeof(buffer), &bytes_read, sector, 8);
 
-        if (bytes_read != 4096) {
-            printf("Error reading: tried to read %u bytes but got %lu\n", sizeof(buffer), bytes_read);
+        if (error != KELP_OK) {
+            printf("Error reading: %ld\n", error);
             return;
         }
 
-        if (error != KELP_OK) {
-            printf("Error reading: %ld\n", error);
+        if (bytes_read != 4096) {
+            printf("Error reading: tried to read %u bytes but got %lu\n", sizeof(buffer), bytes_read);
             return;
         }
 
