@@ -8,6 +8,7 @@
 #define SD_CARD_DRIVER_PID 102
 
 #define SD_CARD_MAX_DEVICES 1
+#define SD_CARD_STACK_HEADROOM 1024
 
 #include <stdbool.h>
 #include <stdint.h>
