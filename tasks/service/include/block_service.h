@@ -33,6 +33,8 @@ kelp_error_t kelp_block_unmount_device(uint8_t device_id);
 
 kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_read, uint32_t start, uint32_t count);
 
+kelp_error_t kelp_block_write_bytes(uint8_t device_id, uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_written, uint32_t start, uint32_t count);
+
 void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args);
 
 #endif //KELPOS_LITE_BLOCK_SERVICE_H

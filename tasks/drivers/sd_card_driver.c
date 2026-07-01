@@ -4,7 +4,7 @@
 
 #include "sd_card_driver.h"
 
-#include <stdint.h>
+#include <stdlib.h>
 
 #include "block_service.h"
 #include "channel.h"
@@ -14,10 +14,19 @@
 #include "sd_card.h"
 #include "kernel_config.h"
 #include "error_codes.h"
-#include "scheduler_internal.h"
 
 static int16_t device_id_2_sd_id[BLOCK_SERVICE_MAX_DEVICES];
 static struct sd_driver_details_t sd_driver_details[SD_CARD_MAX_DEVICES];
+
+static int16_t sd_id_2_device_id(uint8_t sd_id) {
+    for (uint8_t device_id = 0; device_id < BLOCK_SERVICE_MAX_DEVICES; device_id++) {
+        uint8_t temp_sd_id = device_id_2_sd_id[device_id];
+        if (temp_sd_id == sd_id) {
+            return device_id;
+        }
+    }
+    return -1;
+}
 
 static uint32_t sd_bound_count(uint8_t sd_id, uint32_t start, uint32_t count) {
     if (sd_id >= SD_CARD_MAX_DEVICES) {
@@ -58,12 +67,7 @@ static inline uint32_t get_uint32_be(const char* data) {
            ((uint8_t)data[2] << 8)  |  (uint8_t)data[3];
 }
 
-#define CHECK_FOR_OVERFLOW __asm__ volatile ("mov %0, sp" : "=r" (sp)); \
-                           printf("%d pointer-stack dist: %lld, stack usage (bytes): %lu \n", __LINE__, (int64_t)sp - (int64_t)get_scheduler()->current_task->stack, (uint32_t)get_scheduler()->current_task->stack_base - sp);
-
 kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
-    uint32_t sp;
-    CHECK_FOR_OVERFLOW;
     if (size != 9) {
         return KELP_PROTOCOL;
     }
@@ -72,7 +76,6 @@ kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_
     if (!sd_card_p) {
         return KELP_INVALID_ID;
     }
-    CHECK_FOR_OVERFLOW;
 
     uint32_t start = get_uint32_be(&data[1]);
     uint32_t count = get_uint32_be(&data[5]);
@@ -81,27 +84,21 @@ kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_
         return KELP_TOO_BIG;
     }
     uint32_t return_buffer_size = count * 512;
-    CHECK_FOR_OVERFLOW;
 
-    // Ensure stack is large enough before allocating the VLA
-    kelp_error_t error = task_stack_fit_buffer(SD_CARD_STACK_HEADROOM, return_buffer_size, false);
-    KELP_RETURN_ON_ERROR(error);
-    CHECK_FOR_OVERFLOW;
-
-    uint8_t buffer[return_buffer_size];
-    CHECK_FOR_OVERFLOW;
+    uint8_t* buffer = malloc(return_buffer_size);
+    if (!buffer) {
+        return KELP_MEMORY;
+    }
 
     block_dev_err_t rc = sd_card_p->read_blocks(sd_card_p, buffer, start, count);
     if (rc != SD_BLOCK_DEVICE_ERROR_NONE) {
+        free(buffer);
         return KELP_IO;
     }
-    CHECK_FOR_OVERFLOW;
 
-    error = com_send_char_array_blocking(channel_id, buffer, return_buffer_size, REASON_BLOCK_READ_BYTES);
-    KELP_RETURN_ON_ERROR(error);
-    CHECK_FOR_OVERFLOW;
-
-    return KELP_OK;
+    kelp_error_t error = com_send_char_array_blocking(channel_id, buffer, return_buffer_size, REASON_BLOCK_READ_BYTES);
+    free(buffer);
+    return error;
 }
 
 kelp_error_t kelp_sd_handle_write_request(uint16_t channel_id, char* data, uint16_t size) {
@@ -118,36 +115,41 @@ kelp_error_t kelp_sd_handle_write_request(uint16_t channel_id, char* data, uint1
     uint32_t count = get_uint32_be(&data[5]);
     uint32_t buffer_size = count * 512;
 
-    // Ensure stack is large enough before allocating the VLA
-    kelp_error_t error = task_stack_fit_buffer(SD_CARD_STACK_HEADROOM, buffer_size, false);
-    KELP_RETURN_ON_ERROR(error);
+    uint8_t* buffer = malloc(buffer_size);
+    if (!buffer) {
+        return KELP_MEMORY;
+    }
 
-    uint8_t buffer[buffer_size];
     uint32_t received_buffer_size = 0;
     uint16_t reason;
-    error = com_get_char_array_blocking(channel_id, buffer, buffer_size, &received_buffer_size, &reason);
-    KELP_RETURN_ON_ERROR(error);
+    kelp_error_t error = com_get_char_array_blocking(channel_id, buffer, buffer_size, &received_buffer_size, &reason);
+    if (error != KELP_OK) {
+        free(buffer);
+        return error;
+    }
     if (reason != REASON_BLOCK_WRITE_BYTES) {
+        free(buffer);
         return KELP_WRONG_REASON;
     }
     if (buffer_size != received_buffer_size) {
+        free(buffer);
         return KELP_PROTOCOL;
     }
 
     block_dev_err_t rc = sd_card_p->write_blocks(sd_card_p, buffer, start, count);
     if (rc != SD_BLOCK_DEVICE_ERROR_NONE) {
+        free(buffer);
         return KELP_IO;
     }
 
     int64_t response = buffer_size;
     error = com_send_int64_blocking(channel_id, response, REASON_BLOCK_WRITE_BYTES);
-    KELP_RETURN_ON_ERROR(error);
-
-    return KELP_OK;
+    free(buffer);
+    return error;
 }
 
 void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
-    task_request_stack(SD_CARD_STACK_HEADROOM);
+    task_request_stack(1024);
 
     uint32_t l = 0;
 
@@ -180,6 +182,7 @@ void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
      * main driver loop:
      * 1. loop through drives and check if they are connected
      *      a. if so initialize them
+     *      b. if not, unmount
      * 2. check for channels much like a service
      *      b. send responses
      */
@@ -191,29 +194,49 @@ void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
                 return;
             }
 
-            l = 0;
-        }
+            for (uint8_t id = 0; id < SD_CARD_MAX_DEVICES; id++) {
+                sd_card_t* sd_card_p = sd_get_by_num(id);
+                struct sd_driver_details_t* details = &sd_driver_details[id];
+                if (!sd_card_p) {
+                    return;
+                }
 
-        for (uint8_t id = 0; id < SD_CARD_MAX_DEVICES; id++) {
-            sd_card_t* sd_card_p = sd_get_by_num(id);
-            struct sd_driver_details_t* details = &sd_driver_details[id];
-            if (!sd_card_p) {
-                return;
-            }
+                // check newly inserted drives
+                if (sd_card_detect(sd_card_p) && !details->initialized) {
+                    if (sd_card_p->init(sd_card_p)) {
+                        uint8_t device_id;
+                        kelp_error_t error = kelp_block_mount_device(&device_id, 512, sd_card_p->get_num_sectors(sd_card_p));
 
-            if (sd_card_detect(sd_card_p) && !details->initialized) {
-                if (sd_card_p->init(sd_card_p)) {
-                    uint8_t device_id;
-                    kelp_error_t error = kelp_block_mount_device(&device_id, 512, sd_card_p->get_num_sectors(sd_card_p));
+                        if (error == KELP_OK) {
+                            device_id_2_sd_id[device_id] = id;
+                            details->initialized = true;
+                            details->block_count = sd_card_p->get_num_sectors(sd_card_p);
+                            details->size = details->block_count * 512;
+                        }
+                    }
+                }
+
+                // check newly removed drives
+                if (!sd_card_detect(sd_card_p) && details->initialized) {
+                    
+                    int16_t device_id = sd_id_2_device_id(id);
+
+                    if (device_id == -1) {
+                        continue;
+                    }
+
+                    kelp_error_t error = kelp_block_unmount_device(device_id);
 
                     if (error == KELP_OK) {
-                        device_id_2_sd_id[device_id] = id;
-                        details->initialized = true;
-                        details->block_count = sd_card_p->get_num_sectors(sd_card_p);
-                        details->size = details->block_count * 512;
+                        device_id_2_sd_id[device_id] = -1;
+                        details->initialized = false;
+                        details->block_count = 0;
+                        details->size = 0;
                     }
                 }
             }
+
+            l = 0;
         }
 
         // get connected channels
