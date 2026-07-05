@@ -218,7 +218,7 @@ void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
 
                 // check newly removed drives
                 if (!sd_card_detect(sd_card_p) && details->initialized) {
-                    
+
                     int16_t device_id = sd_id_2_device_id(id);
 
                     if (device_id == -1) {
