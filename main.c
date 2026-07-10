@@ -3,6 +3,7 @@
 
 #include "block_service.h"
 #include "channel.h"
+#include "com_channel_protocol.h"
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
 
@@ -129,7 +130,7 @@ void disk_speed_task(uint32_t pid, uint32_t* signals, char* args) {
             return;
         }
 
-        printf("time: %u\n", (get_core_usage(0) + get_core_usage(1)) / 2);
+        // printf("time: %u\n", (get_core_usage(0) + get_core_usage(1)) / 2);
 
         if (time_us_32() > end) {
             break;
@@ -152,71 +153,30 @@ void disk_write_task(uint32_t pid, uint32_t* signals, char* args) {
     uint8_t device_id = 0;
     uint32_t sector = 0;
 
-    uint8_t new_data[3072] =
-"O Deep Thought computer,\" he said, \"the task we have designed you to perform is this. We want you to tell us....\" he paused, \"The Answer.\"\
-\"The Answer?\" said Deep Thought. \"The Answer to what?\"\
-\"Life!\" urged Fook.\
-\"The Universe!\" said Lunkwill.\
-\"Everything!\" they said in chorus.\
-Deep Thought paused for a moment's reflection.\
-\"Tricky,\" he said finally.\
-\"But can you do it?\"\
-Again, a significant pause.\
-\"Yes,\" said Deep Thought, \"I can do it.\"\
-\"There is an answer?\" said Fook with breathless excitement.\
-\"Yes,\" said Deep Thought. \"Life, the Universe, and Everything. There is an answer. But, I'll have to think about it.\"\
-...\
-Fook glanced impatiently at his watch.\
-\"How long?\" he said.\
-\"Seven and a half million years,\" said Deep Thought.\
-Lunkwill and Fook blinked at each other.\
-\"Seven and a half million years...!\" they cried in chorus.\
-\"Yes,\" declaimed Deep Thought, \"I said I’d have to think about it, didn’t I?\"\
-\
-[Seven and a half million years later.... Fook and Lunkwill are long gone, but their descendents continue what they started]\
-\
-\"We are the ones who will hear,\" said Phouchg, \"the answer to the great question of Life....!\"\
-\"The Universe...!\" said Loonquawl.\
-\"And Everything...!\"\
-\"Shhh,\" said Loonquawl with a slight gesture. \"I think Deep Thought is preparing to speak!\"\
-There was a moment's expectant pause while panels slowly came to life on the front of the console. Lights flashed on and off experimentally and settled down into a businesslike pattern. A soft low hum came from the communication channel.\
-\
-\"Good Morning,\" said Deep Thought at last.\
-\"Er..good morning, O Deep Thought\" said Loonquawl nervously, \"do you have...er, that is...\"\
-\"An Answer for you?\" interrupted Deep Thought majestically. \"Yes, I have.\"\
-The two men shivered with expectancy. Their waiting had not been in vain.\
-\"There really is one?\" breathed Phouchg.\
-\"There really is one,\" confirmed Deep Thought.\
-\"To Everything? To the great Question of Life, the Universe and everything?\"\
-\"Yes.\"\
-Both of the men had been trained for this moment, their lives had been a preparation for it, they had been selected at birth as those who would witness the answer, but even so they found themselves gasping and squirming like excited children.\
-\"And you're ready to give it to us?\" urged Loonsuawl.\
-\"I am.\"\
-\"Now?\"\
-\"Now,\" said Deep Thought.\
-They both licked their dry lips.\
-\"Though I don't think,\" added Deep Thought. \"that you're going to like it.\"\
-\"Doesn't matter!\" said Phouchg. \"We must know it! Now!\"\
-\"Now?\" inquired Deep Thought.\
-\"Yes! Now...\"\
-\"All right,\" said the computer, and settled into silence again. The two men fidgeted. The tension was unbearable.\
-\"You're really not going to like it,\" observed Deep Thought.\
-\"Tell us!\"\
-\"All right,\" said Deep Thought. \"The Answer to the Great Question...\"\
-\"Yes..!\"\
-\"Of Life, the Universe and Everything...\" said Deep Thought.\
-\"Yes...!\"\
-\"Is...\" said Deep Thought, and paused.\
-\"Yes...!\"\
-\"Is...\"\
-\"Yes...!!!...?\"\
-\"Forty-two,\" said Deep Thought, with infinite majesty and calm.\"";
+    uint32_t block_size = 0;
+    kelp_error_t error = kelp_block_get_block_size(device_id, &block_size);
+    if (error != KELP_OK) {
+        printf("Error getting block size: %ld\n", error);
+        return;
+    }
+    printf("Device Block Size is %lu bytes\n", block_size);
+
+    uint32_t block_count = 0;
+    error = kelp_block_get_block_count(device_id, &block_count);
+    if (error != KELP_OK) {
+        printf("Error getting block count: %ld\n", error);
+        return;
+    }
+    printf("Device Block Size is %lu bytes\n", block_count);
+
+    uint8_t new_data[512] =
+"He felt that his whole life was some kind of dream and he sometimes wondered whose it was and whether they were enjoying it.";
     uint8_t old_data[sizeof(new_data)];
 
     // get original data
     printf("\nReading original data\n");
     uint32_t bytes_read = 0;
-    kelp_error_t error = kelp_block_read_bytes(device_id, old_data, sizeof(old_data), &bytes_read, sector, sizeof(old_data) / 512);
+    error = kelp_block_read_bytes(device_id, old_data, sizeof(old_data), &bytes_read, sector, sizeof(old_data) / 512);
 
     if (error != KELP_OK) {
         printf("Error reading original data: %ld\n", error);
@@ -283,6 +243,101 @@ They both licked their dry lips.\
     }
 }
 
+#define TEST_DATA_SIZE 4096
+#define BUFFER_SIZE TEST_DATA_SIZE
+
+static uint8_t tx_buffer[BUFFER_SIZE];
+static uint8_t rx_buffer[BUFFER_SIZE];
+
+// Sender task
+void channel_sender_task(uint32_t pid, uint32_t* signals, char* args) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(pid + 1, false, &channel_id);
+    if (error != KELP_OK) {
+        printf("Error requesting channel id: %ld\n", error);
+        return;
+    }
+    uint32_t total_sent = 0;
+    uint32_t start_us = time_us_32();
+
+    printf("Channel speed test on channel %u\n", channel_id);
+    printf("Sending 1000 x 4096 byte messages\n\n");
+
+    for (uint32_t i = 0; i < 1000; i++) {
+        // Fill data
+        for (uint32_t b = 0; b < TEST_DATA_SIZE; b++) {
+            tx_buffer[b] = (uint8_t)(b & 0xFF);
+        }
+
+        // Send using array protocol (adds 7-byte header: type + reason + size)
+        // uint32_t debug_start_us = time_us_32();
+        kelp_error_t result = com_send_char_array_blocking(channel_id, tx_buffer, TEST_DATA_SIZE, 0x0001);
+        // printf("%s: %d took %f ms\n", __FUNCTION__, __LINE__, (float)(time_us_32() - debug_start_us) / 1000.0);
+        if (result != KELP_OK) {
+            printf("Sender error at iteration %lu: %d\n", i, result);
+            break;
+        }
+        total_sent += TEST_DATA_SIZE;
+    }
+
+    uint32_t end_us = time_us_32();
+    uint32_t duration_us = end_us - start_us;
+    if (duration_us > 0) {
+        float throughput = (float)total_sent / (duration_us / 1000000.0f);
+        printf("Sender: %lu bytes in %lu us (%.2f KB/s, %.2f MB/s)\n",
+               total_sent, duration_us,
+               throughput / 1024.0f,
+               throughput / 1048576.0f);
+    }
+}
+
+// Receiver task
+void channel_receiver_task(uint32_t pid, uint32_t* signals, char* args) {
+    task_sleep_ms(20);
+    uint16_t channel_ids[NUM_CHANNELS];
+    uint16_t num_channels = 0;
+    kelp_error_t error = get_connected_channels(channel_ids, &num_channels, NUM_CHANNELS);
+    if (error != KELP_OK || num_channels == 0) {
+        printf("Error requesting channel id: %ld\n", error);
+        return;
+    }
+
+    uint16_t channel_id = channel_ids[0];
+    uint32_t total_recv = 0;
+    uint32_t start_us = time_us_32();
+
+    for (uint32_t i = 0; i < 1000; i++) {
+        uint32_t data_size = 0;
+        uint16_t reason = 0;
+        // Receive using array protocol (reads 7-byte header + data)
+        // uint32_t debug_start_us = time_us_32();
+        kelp_error_t result = com_get_char_array_blocking(channel_id, rx_buffer, BUFFER_SIZE, &data_size, &reason);
+        // printf("%s: %d took %f ms\n", __FUNCTION__, __LINE__, (float)(time_us_32() - debug_start_us) / 1000.0);
+        if (result != KELP_OK) {
+            printf("Receiver error at iteration %lu: %d\n", i, result);
+            break;
+        }
+        total_recv += data_size;
+    }
+
+    uint32_t end_us = time_us_32();
+    uint32_t duration_us = end_us - start_us;
+    if (duration_us > 0) {
+        float throughput = (float)total_recv / (duration_us / 1000000.0f);
+        printf("Receiver: %lu bytes in %lu us (%.2f KB/s, %.2f MB/s)\n",
+               total_recv, duration_us,
+               throughput / 1024.0f,
+               throughput / 1048576.0f);
+    }
+}
+
+// Create the test
+void channel_speed_test_task(uint32_t pid, uint32_t* signals, char* args) {
+    task_sleep_ms(2000);
+    task_add(channel_sender_task, 14, 89);
+    task_add(channel_receiver_task, 15, 89);
+}
+
 void system_task(uint32_t pid, uint32_t* signals, char* args) {
     task_request_stack(256);
 
@@ -298,7 +353,7 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
 
-    task_add(disk_speed_task, 12, 88);
+    task_add(channel_speed_test_task, 12, 88);
 
     while (1) {
         task_sleep_ms(1000);

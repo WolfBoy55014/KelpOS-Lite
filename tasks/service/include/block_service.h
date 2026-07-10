@@ -11,6 +11,8 @@
 
 #define REASON_BLOCK_MOUNT 8975
 #define REASON_BLOCK_UNMOUNT 54365
+#define REASON_BLOCK_SIZE 24561
+#define REASON_BLOCK_COUNT 5678
 #define REASON_BLOCK_READ_BYTES 9346
 #define REASON_BLOCK_WRITE_BYTES 25675
 #define REASON_BLOCK_GET_DRIVER_PID 39487
@@ -30,6 +32,10 @@ struct block_device_t {
 kelp_error_t kelp_block_mount_device(uint8_t* device_id, uint32_t block_size, uint32_t block_count);
 
 kelp_error_t kelp_block_unmount_device(uint8_t device_id);
+
+kelp_error_t kelp_block_get_block_size(uint8_t device_id, uint32_t* block_size);
+
+kelp_error_t kelp_block_get_block_count(uint8_t device_id, uint32_t* block_count);
 
 kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_read, uint32_t start, uint32_t count);
 
