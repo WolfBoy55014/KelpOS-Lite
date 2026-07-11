@@ -11,12 +11,11 @@
 #include "scheduler_internal.h"
 #include "governor.h"
 #include "sd_card_driver.h"
-#include "usb_hid_driver.h"
 #include "serial_driver.h"
 #include "hardware/clocks.h"
 #include "text_service.h"
 #include "shell.h"
-#include "usb_msc_driver.h"
+#include "usb_host_driver.h"
 
 void monitor_task(uint32_t pid, uint32_t* signals, char* args) {
     const uint8_t length = 20;
@@ -354,7 +353,7 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     // task_add(kelp_task_usb_hid_driver, USB_HID_DRIVER_PID, 88);
     task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 88);
     task_add(kelp_task_sd_card_driver, SD_CARD_DRIVER_PID, 89);
-    task_add(kelp_task_usb_msc_driver, USB_MSC_DRIVER_PID, 89);
+    task_add(kelp_task_usb_host_driver, USB_HOST_DRIVER_PID, 89);
 
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);

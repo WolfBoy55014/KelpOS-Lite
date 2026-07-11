@@ -5,7 +5,7 @@
 
 #include <stdlib.h>
 
-#include "usb_msc_driver.h"
+#include "usb_host_driver.h"
 #include "block_service.h"
 #include "channel.h"
 #include "com_channel_protocol.h"
@@ -13,13 +13,32 @@
 #include "scheduler.h"
 #include "kernel_config.h"
 #include "error_codes.h"
+#include "text_service.h"
 #include "tusb.h"
 #include "bsp/board_api.h"
+
+// ---------------------------+
+// Static Variables
+// ---------------------------+
+
+// ----------- MSC -----------+
 
 static int16_t device_id_2_msc_id[BLOCK_SERVICE_MAX_DEVICES];
 static struct msc_driver_details_t msc_driver_details[USB_MSC_MAX_DEVICES];
 
 static msc_inflight_request_t inflight_requests[USB_MSC_MAX_DEVICES];
+
+// ----------- HID -----------+
+
+static uint8_t const keycode2ascii[128][2] = {HID_KEYCODE_TO_ASCII};
+
+static struct usb_keyboard_t usb_keyboards[USB_HID_MAX_KEYBOARDS];
+
+// ---------------------------+
+// Utility Functions
+// ---------------------------+
+
+// ----------- MSC -----------+
 
 static bool kelp_msc_io_done(uint8_t dev_addr, const tuh_msc_complete_data_t *cb_data);
 
@@ -176,7 +195,6 @@ static kelp_error_t kelp_msc_handle_write_request(uint16_t channel_id, char* dat
     return KELP_OK;
 }
 
-
 static void kelp_msc_service_completions() {
     for (uint8_t msc_id = 0; msc_id < USB_MSC_MAX_DEVICES; msc_id++) {
         msc_inflight_request_t* req = &inflight_requests[msc_id];
@@ -217,21 +235,81 @@ static void kelp_msc_service_completions() {
     }
 }
 
-void kelp_task_usb_msc_driver(uint32_t pid, uint32_t* signals, char* args) {
-    task_request_stack(1024);
+// ----------- HID -----------+
 
-    board_init();
-    // TODO: get this to stop messing with the LED
-
-    // init host stack on configured roothub port
-    tuh_init(BOARD_TUH_RHPORT);
-
-    if (board_init_after_tusb) {
-        board_init_after_tusb();
+// look up new key in previous keys
+static bool find_key_in_report(hid_keyboard_report_t const* report, uint8_t keycode) {
+    for (uint8_t i = 0; i < 6; i++) {
+        if (report->keycode[i] == keycode) return true;
     }
 
-    uint32_t l = 0;
+    return false;
+}
 
+static void update_kbd_leds(struct usb_keyboard_t* usb_keyboard) {
+    static uint8_t leds = 0;
+
+    leds = 0;
+    leds |= usb_keyboard->caps_lock ? KEYBOARD_LED_CAPSLOCK : 0;
+    leds |= usb_keyboard->num_lock ? KEYBOARD_LED_NUMLOCK : 0;
+    leds |= usb_keyboard->scroll_lock ? KEYBOARD_LED_SCROLLLOCK : 0;
+
+    tuh_hid_set_report(usb_keyboard->device.dev_addr, usb_keyboard->device.instance,
+                       0,  // report_id (0 for boot keyboard)
+                       HID_REPORT_TYPE_OUTPUT,
+                       &leds, 1);
+}
+
+static void process_kbd_report(struct usb_keyboard_t* usb_keyboard, hid_keyboard_report_t const* report) {
+    for (uint8_t i = 0; i < 6; i++) {
+        if (report->keycode[i]) {
+            if (find_key_in_report(&usb_keyboard->last_report, report->keycode[i])) {
+                // was in previous report, so it is being held down
+            }
+            else {
+                // the key is newly pressed
+
+                // handle special keys
+                switch (report->keycode[i]) {
+                case HID_KEY_CAPS_LOCK:
+                    usb_keyboard->caps_lock = !usb_keyboard->caps_lock;
+                    update_kbd_leds(usb_keyboard);
+                    continue;
+
+                case HID_KEY_NUM_LOCK:
+                    usb_keyboard->num_lock = !usb_keyboard->num_lock;
+                    update_kbd_leds(usb_keyboard);
+                    continue;
+
+                case HID_KEY_SCROLL_LOCK:
+                    usb_keyboard->scroll_lock = !usb_keyboard->scroll_lock;
+                    update_kbd_leds(usb_keyboard);
+                    continue;
+                }
+
+                bool is_shift = report->modifier & (KEYBOARD_MODIFIER_LEFTSHIFT | KEYBOARD_MODIFIER_RIGHTSHIFT);
+
+                // reverse case if caps lock is on
+                if (usb_keyboard->caps_lock) {
+                    is_shift = !is_shift;
+                }
+
+                uint8_t ch = keycode2ascii[report->keycode[i]][is_shift ? 1 : 0];
+                kelp_text_send_input_char(ch);
+            }
+        }
+    }
+
+    usb_keyboard->last_report = *report;
+}
+
+// ---------------------------+
+// Task Functions
+// ---------------------------+
+
+// ----------- MSC -----------+
+
+static void kelp_init_msc_driver() {
     // initialize id mappings
     for (uint8_t id = 0; id < BLOCK_SERVICE_MAX_DEVICES; id++) {
         device_id_2_msc_id[id] = -1;
@@ -243,79 +321,105 @@ void kelp_task_usb_msc_driver(uint32_t pid, uint32_t* signals, char* args) {
         inflight_requests[id].state = MSC_REQ_IDLE;
         inflight_requests[id].buffer = NULL;
     }
+}
 
-    while (true) {
+static void kelp_update_msc_driver() {
+    // pick up any transfers that finished since the last iteration
+    kelp_msc_service_completions();
+
+    // get connected channels
+    uint16_t channel_ids[NUM_CHANNELS];
+    uint16_t num_connected = 0;
+    kelp_error_t error = get_connected_channels(channel_ids, &num_connected, NUM_CHANNELS);
+
+    if (error != KELP_OK) {
+        return;
+    }
+
+    // check for messages
+    for (uint32_t c = 0; c < num_connected; c++) {
+        uint16_t channel_id = channel_ids[c];
+
+        // can we read from this channel?
+        if (is_channel_ready_to_read(channel_id)) {
+            uint8_t content_type = 0;
+            error = com_channel_peek(channel_id, &content_type);
+            if (error != KELP_OK) {
+                continue;
+            }
+
+            // does this channel contain an array?
+            if (content_type == COM_TYPE_ARRAY) {
+                // get the reason
+                uint16_t reason = 0;
+
+                char data[CHANNEL_SIZE];
+                uint16_t size;
+
+                error = com_get_char_array_fast(channel_id, &data, &size, &reason);
+                if (error != KELP_OK) {
+                    continue;
+                }
+
+                // handle block device operations
+                switch (reason) {
+                case REASON_BLOCK_READ_BYTES:
+                    // send the requested bytes
+                    error = kelp_msc_handle_read_request(channel_id, data, size);
+                    if (error != KELP_OK) {
+                        com_send_int32_blocking(channel_id, error, REASON_BLOCK_ERROR);
+                    }
+                    break;
+                case REASON_BLOCK_WRITE_BYTES:
+                    // write the provided bytes
+                    error = kelp_msc_handle_write_request(channel_id, data, size);
+                    if (error != KELP_OK) {
+                        com_send_int32_blocking(channel_id, error, REASON_BLOCK_ERROR);
+                    }
+                    break;
+                default: continue;
+                }
+            }
+        }
+    }
+}
+
+// ----------- HID -----------+
+
+static void kelp_update_hid_driver() {
+}
+
+// ----------- GEN -----------+
+
+void kelp_task_usb_host_driver(uint32_t pid, uint32_t* signals, char* args) {
+    task_request_stack(1024);
+
+    // TODO: support PIO USB and MAX3421
+
+    // init host stack on configured roothub port
+    tuh_init(BOARD_TUH_RHPORT);
+    // TODO: Make sure this doesn't happen twice
+
+    kelp_init_msc_driver();
+
+    uint32_t l = 0;
+
+    while (1) {
         if (l >= 100) {
             // check signals
             if (*signals & TASK_SIGTERM) {
+                tuh_deinit(BOARD_TUH_RHPORT);
                 return;
             }
 
             l = 0;
         }
 
-        // run TinyUSB task
+        // check for and process callbacks
         tuh_task();
 
-        // pick up any transfers that finished since the last iteration
-        kelp_msc_service_completions();
-
-        // get connected channels
-        uint16_t channel_ids[NUM_CHANNELS];
-        uint16_t num_connected = 0;
-        kelp_error_t error = get_connected_channels(channel_ids, &num_connected, NUM_CHANNELS);
-
-        if (error != KELP_OK) {
-            task_sleep_ms(5);
-            continue;
-        }
-
-        // check for messages
-        for (uint32_t c = 0; c < num_connected; c++) {
-            uint16_t channel_id = channel_ids[c];
-
-            // can we read from this channel?
-            if (is_channel_ready_to_read(channel_id)) {
-                uint8_t content_type = 0;
-                error = com_channel_peek(channel_id, &content_type);
-                if (error != KELP_OK) {
-                    continue;
-                }
-
-                // does this channel contain an array?
-                if (content_type == COM_TYPE_ARRAY) {
-                    // get the reason
-                    uint16_t reason = 0;
-
-                    char data[CHANNEL_SIZE];
-                    uint16_t size;
-
-                    error = com_get_char_array_fast(channel_id, &data, &size, &reason);
-                    if (error != KELP_OK) {
-                        continue;
-                    }
-
-                    // handle block device operations
-                    switch (reason) {
-                    case REASON_BLOCK_READ_BYTES:
-                        // send the requested bytes
-                        error = kelp_msc_handle_read_request(channel_id, data, size);
-                        if (error != KELP_OK) {
-                            com_send_int32_blocking(channel_id, error, REASON_BLOCK_ERROR);
-                        }
-                        break;
-                    case REASON_BLOCK_WRITE_BYTES:
-                        // write the provided bytes
-                        error = kelp_msc_handle_write_request(channel_id, data, size);
-                        if (error != KELP_OK) {
-                            com_send_int32_blocking(channel_id, error, REASON_BLOCK_ERROR);
-                        }
-                        break;
-                    default: continue;
-                    }
-                }
-            }
-        }
+        kelp_update_hid_driver();
+        kelp_update_msc_driver();
 
         l++;
 
@@ -327,11 +431,12 @@ void kelp_task_usb_msc_driver(uint32_t pid, uint32_t* signals, char* args) {
 // TinyUSB Callbacks
 // ---------------------------+
 
+// ----------- MSC -----------+
+
 // define the buffer to be place in USB/DMA memory with correct alignment/cache line size
 CFG_TUH_MEM_SECTION static struct {
     TUH_EPBUF_TYPE_DEF(scsi_inquiry_resp_t, inquiry);
 } scsi_resp;
-
 
 // Kept short per callback-context guidance: just record the result and
 // clear busy. kelp_msc_service_completions() does the actual work
@@ -424,4 +529,88 @@ void tuh_msc_umount_cb(uint8_t dev_addr) {
     }
 }
 
+// ----------- HID -----------+
 
+// invoked when hid device is connected
+void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
+    uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+
+    if (itf_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
+        for (uint8_t k = 0; k < USB_HID_MAX_KEYBOARDS; k++) {
+            struct usb_keyboard_t* usb_keyboard = &usb_keyboards[k];
+            if (!usb_keyboard->device.connected) {
+                usb_keyboard->device.connected = true;
+                usb_keyboard->device.dev_addr = dev_addr;
+                usb_keyboard->device.instance = instance;
+
+                usb_keyboard->caps_lock = false;
+                usb_keyboard->num_lock = false;
+                usb_keyboard->scroll_lock = false;
+
+                break;
+            }
+        }
+    }
+
+    if (!tuh_hid_receive_report(dev_addr, instance)) {
+        // uh oh, we can't request reports!
+    }
+}
+
+// invoked when hid device is disconnected
+void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
+    uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+
+    if (itf_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
+        for (uint8_t k = 0; k < USB_HID_MAX_KEYBOARDS; k++) {
+            struct usb_keyboard_t* usb_keyboard = &usb_keyboards[k];
+            if (usb_keyboard->device.connected &&
+                usb_keyboard->device.dev_addr == dev_addr &&
+                usb_keyboard->device.instance == instance) {
+
+                // disconnect
+                usb_keyboard->device.connected = false;
+                usb_keyboard->device.dev_addr = 0;
+                usb_keyboard->device.instance = 0;
+
+                usb_keyboard->caps_lock = false;
+                usb_keyboard->num_lock = false;
+                usb_keyboard->scroll_lock = false;
+
+                break;
+            }
+        }
+    }
+}
+
+// invoked when hid sends a report
+void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
+    uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+
+    switch (itf_protocol) {
+    case HID_ITF_PROTOCOL_KEYBOARD:
+
+        for (uint8_t k = 0; k < USB_HID_MAX_KEYBOARDS; k++) {
+            struct usb_keyboard_t* usb_keyboard = &usb_keyboards[k];
+
+            if (usb_keyboard->device.connected &&
+                usb_keyboard->device.dev_addr == dev_addr &&
+                usb_keyboard->device.instance == instance) {
+                process_kbd_report(usb_keyboard, (hid_keyboard_report_t const*)report);
+                break;
+            }
+        }
+        break;
+
+    case HID_ITF_PROTOCOL_MOUSE:
+        break;
+
+    default:
+        break;
+    }
+
+    // continue to request to receive report
+    if (!tuh_hid_receive_report(dev_addr, instance)) {
+        // uh oh, we can't request reports!
+    }
+}

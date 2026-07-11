@@ -8,10 +8,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "tusb_config.h"
+#include "class/hid/hid.h"
 
-#define USB_MSC_DRIVER_PID 103
+#define USB_HOST_DRIVER_PID 103
 
 #define USB_MSC_MAX_DEVICES CFG_TUH_MSC
+#define USB_HID_MAX_KEYBOARDS CFG_TUH_HID
+
+// ----------- MSC -----------+
 
 struct msc_driver_details_t {
     bool initialized;
@@ -35,6 +39,22 @@ typedef struct {
     bool success;
 } msc_inflight_request_t;
 
-void kelp_task_usb_msc_driver(uint32_t pid, uint32_t* signals, char* args);
+// ----------- HID -----------+
+
+struct usb_hid_device_t {
+    bool connected;
+    uint8_t dev_addr;
+    uint8_t instance;
+};
+
+struct usb_keyboard_t {
+    bool caps_lock;
+    bool num_lock;
+    bool scroll_lock;
+    struct usb_hid_device_t device;
+    hid_keyboard_report_t last_report;
+};
+
+void kelp_task_usb_host_driver(uint32_t pid, uint32_t* signals, char* args);
 
 #endif //KELPOS_LITE_USB_MSC_DRIVER_H
