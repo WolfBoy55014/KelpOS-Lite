@@ -16,6 +16,7 @@
 #include "hardware/clocks.h"
 #include "text_service.h"
 #include "shell.h"
+#include "usb_msc_driver.h"
 
 void monitor_task(uint32_t pid, uint32_t* signals, char* args) {
     const uint8_t length = 20;
@@ -110,38 +111,42 @@ void disk_speed_task(uint32_t pid, uint32_t* signals, char* args) {
 
     printf("Starting Speed Test\n");
 
-    uint32_t sector = 0;
-    uint32_t duration = 10;
-    uint32_t start = time_us_32();
-    uint32_t end = start + duration * 1000000;
-    uint32_t num_sectors = 100000;
-    for (sector = 0; sector < num_sectors; sector += 8) {
-        uint8_t buffer[4096];
-        uint32_t bytes_read = 0;
-        kelp_error_t error = kelp_block_read_bytes(0, buffer, sizeof(buffer), &bytes_read, sector, 8);
+    for (uint8_t device_id = 0; device_id < BLOCK_SERVICE_MAX_DEVICES; device_id++) {
+        printf("+--------- Device %u ---------+\n", device_id);
+        uint32_t sector = 0;
+        uint32_t duration = 10;
+        uint32_t start = time_us_32();
+        uint32_t end = start + duration * 1000000;
+        uint32_t num_sectors = 100000;
+        for (sector = 0; sector < num_sectors; sector += 8) {
+            uint8_t buffer[4096];
+            uint32_t bytes_read = 0;
+            kelp_error_t error = kelp_block_read_bytes(device_id, buffer, sizeof(buffer), &bytes_read, sector, 8);
 
-        if (error != KELP_OK) {
-            printf("Error reading: %ld\n", error);
-            return;
+            if (error != KELP_OK) {
+                printf("Error reading: %ld\n", error);
+                return;
+            }
+
+            if (bytes_read != 4096) {
+                printf("Error reading: tried to read %u bytes but got %lu\n", sizeof(buffer), bytes_read);
+                return;
+            }
+
+            // printf("time: %u\n", (get_core_usage(0) + get_core_usage(1)) / 2);
+
+            if (time_us_32() > end) {
+                break;
+            }
         }
 
-        if (bytes_read != 4096) {
-            printf("Error reading: tried to read %u bytes but got %lu\n", sizeof(buffer), bytes_read);
-            return;
-        }
+        uint32_t bytes_read = sector * 512;
+        double bytes_per_sec = (double) bytes_read / (double) duration;
 
-        // printf("time: %u\n", (get_core_usage(0) + get_core_usage(1)) / 2);
-
-        if (time_us_32() > end) {
-            break;
-        }
+        printf("Read %lu sectors\n", sector);
+        printf("Bytes per second: %f\n", bytes_per_sec);
+        printf("+----------------------------+\n");
     }
-
-    uint32_t bytes_read = sector * 512;
-    double bytes_per_sec = (double) bytes_read / (double) duration;
-
-    printf("Read %lu sectors\n", sector);
-    printf("Bytes per second: %f\n", bytes_per_sec);
 }
 
 void disk_write_task(uint32_t pid, uint32_t* signals, char* args) {
@@ -346,14 +351,15 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     task_add(kelp_task_block_service, BLOCK_SERVICE_PID, 89);
 
     // start drivers
-    task_add(kelp_task_usb_hid_driver, USB_HID_DRIVER_PID, 88);
+    // task_add(kelp_task_usb_hid_driver, USB_HID_DRIVER_PID, 88);
     task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 88);
     task_add(kelp_task_sd_card_driver, SD_CARD_DRIVER_PID, 89);
+    task_add(kelp_task_usb_msc_driver, USB_MSC_DRIVER_PID, 89);
 
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
 
-    task_add(channel_speed_test_task, 12, 88);
+    task_add(disk_speed_task, 12, 88);
 
     while (1) {
         task_sleep_ms(1000);

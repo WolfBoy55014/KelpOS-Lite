@@ -48,7 +48,7 @@ static uint32_t sd_bound_count(uint8_t sd_id, uint32_t start, uint32_t count) {
 }
 
 // Helper: extract a valid sd_card_t* from a request, or return NULL if invalid
-static sd_card_t* get_sd_from_request(const char* data, int8_t* out_sd_id) {
+static sd_card_t* get_sd_from_request(const char* data, uint8_t* out_sd_id) {
     uint8_t device_id = data[0];
     if (device_id >= BLOCK_SERVICE_MAX_DEVICES) {
         return NULL;
@@ -57,7 +57,7 @@ static sd_card_t* get_sd_from_request(const char* data, int8_t* out_sd_id) {
     if (sd_id < 0 || sd_id >= SD_CARD_MAX_DEVICES) {
         return NULL;
     }
-    *out_sd_id = (int8_t)sd_id;
+    *out_sd_id = (uint8_t)sd_id;
     return sd_get_by_num(sd_id);
 }
 
@@ -67,11 +67,11 @@ static inline uint32_t get_uint32_be(const char* data) {
            ((uint8_t)data[2] << 8)  |  (uint8_t)data[3];
 }
 
-kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
+static kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
     if (size != 9) {
         return KELP_PROTOCOL;
     }
-    int8_t sd_id;
+    uint8_t sd_id;
     sd_card_t* sd_card_p = get_sd_from_request(data, &sd_id);
     if (!sd_card_p) {
         return KELP_INVALID_ID;
@@ -101,11 +101,11 @@ kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_
     return error;
 }
 
-kelp_error_t kelp_sd_handle_write_request(uint16_t channel_id, char* data, uint16_t size) {
+static kelp_error_t kelp_sd_handle_write_request(uint16_t channel_id, char* data, uint16_t size) {
     if (size != 9) {
         return KELP_PROTOCOL;
     }
-    int8_t sd_id;
+    uint8_t sd_id;
     sd_card_t* sd_card_p = get_sd_from_request(data, &sd_id);
     if (!sd_card_p) {
         return KELP_INVALID_ID;
@@ -113,6 +113,10 @@ kelp_error_t kelp_sd_handle_write_request(uint16_t channel_id, char* data, uint1
 
     uint32_t start = get_uint32_be(&data[1]);
     uint32_t count = get_uint32_be(&data[5]);
+    count = sd_bound_count(sd_id, start, count);
+    if (count == 0) {
+        return KELP_TOO_BIG;
+    }
     uint32_t buffer_size = count * 512;
 
     uint8_t* buffer = malloc(buffer_size);
@@ -142,8 +146,7 @@ kelp_error_t kelp_sd_handle_write_request(uint16_t channel_id, char* data, uint1
         return KELP_IO;
     }
 
-    int64_t response = buffer_size;
-    error = com_send_int64_blocking(channel_id, response, REASON_BLOCK_WRITE_BYTES);
+    error = com_send_uint32_blocking(channel_id, buffer_size, REASON_BLOCK_WRITE_BYTES);
     free(buffer);
     return error;
 }

@@ -9,6 +9,7 @@ add_library(tasks_driver INTERFACE)
 
 target_sources(tasks_driver INTERFACE
         usb_hid_driver.c
+        usb_msc_driver.c
         serial_driver.c
         hw_config.c
         sd_card_driver.c

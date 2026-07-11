@@ -57,11 +57,11 @@ static inline kelp_error_t check_driver_error(uint16_t driver_channel_id) {
 }
 
 // Check the device_id is in bounds
-static inline bool valid_device_id(uint8_t device_id) {
+static inline bool is_valid_device_id(uint8_t device_id) {
     return device_id < BLOCK_SERVICE_MAX_DEVICES;
 }
 
-uint32_t kelp_block_get_driver_pid(uint8_t device_id) {
+static uint32_t kelp_block_get_driver_pid(uint8_t device_id) {
     // send request
     uint16_t channel_id = 0;
     kelp_error_t error = com_channel_request_blocking(BLOCK_SERVICE_PID, true, &channel_id);
@@ -256,26 +256,25 @@ kelp_error_t kelp_block_write_bytes(uint8_t device_id, uint8_t* buffer, uint32_t
     }
 
     uint16_t reason;
-    int64_t response;
-    error = com_get_int64_blocking(channel_id, &response, &reason);
+    uint32_t response;
+    error = com_get_uint32_blocking(channel_id, &response, &reason);
     KELP_RETURN_ON_ERROR(error);
 
     if (reason != REASON_BLOCK_WRITE_BYTES) {
         return KELP_WRONG_REASON;
     }
 
-    if (response >= 0) {
-        if (bytes_written != NULL) {
-            *bytes_written = (uint32_t)response;
-        }
+
+    if (bytes_written != NULL) {
+        *bytes_written = (uint32_t)response;
     } else {
-        return (int32_t)response;
+        return KELP_ERROR;
     }
 
     return KELP_OK;
 }
 
-kelp_error_t kelp_block_reset_device(struct block_device_t* driver) {
+static kelp_error_t kelp_block_reset_device(struct block_device_t* driver) {
     driver->driver_pid = 0;
     driver->block_size = 0;
     driver->block_count = 0;
@@ -283,7 +282,7 @@ kelp_error_t kelp_block_reset_device(struct block_device_t* driver) {
     return KELP_OK;
 }
 
-kelp_error_t kelp_block_add_device(uint8_t* device_id, uint32_t pid, uint32_t block_size, uint32_t block_count) {
+static kelp_error_t kelp_block_add_device(uint8_t* device_id, uint32_t pid, uint32_t block_size, uint32_t block_count) {
     for (uint8_t bd = 0; bd < BLOCK_SERVICE_MAX_DEVICES; bd++) {
         struct block_device_t* device = &block_devices[bd];
         if (device->driver_pid == 0) {
@@ -298,7 +297,7 @@ kelp_error_t kelp_block_add_device(uint8_t* device_id, uint32_t pid, uint32_t bl
     return KELP_NONE_FREE;
 }
 
-kelp_error_t kelp_block_remove_device(uint32_t pid, uint8_t device_id) {
+static kelp_error_t kelp_block_remove_device(uint32_t pid, uint8_t device_id) {
     struct block_device_t* driver = &block_devices[device_id];
     if (driver->driver_pid == pid) {
         kelp_block_reset_device(driver);
@@ -307,7 +306,7 @@ kelp_error_t kelp_block_remove_device(uint32_t pid, uint8_t device_id) {
     return KELP_NO_TASK;
 }
 
-kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
+static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
     if (size != 8) {
         return KELP_PROTOCOL;
     }
@@ -322,17 +321,20 @@ kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char data[CHAN
     return KELP_OK;
 }
 
-kelp_error_t kelp_block_handle_unmount_request(uint16_t channel_id, uint8_t device_id) {
+static kelp_error_t kelp_block_handle_unmount_request(uint16_t channel_id, uint8_t device_id) {
+    if (!is_valid_device_id(device_id)) {
+        return KELP_INVALID_ID;
+    }
     kelp_error_t error = kelp_block_remove_device(get_channel_partner_pid(channel_id), device_id);
     return error;
 }
 
-kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
+static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
     if (size != 9) {
         return KELP_PROTOCOL;
     }
     uint8_t device_id = data[0];
-    if (!valid_device_id(device_id)) {
+    if (!is_valid_device_id(device_id)) {
         return KELP_INVALID_ID;
     }
 
@@ -374,12 +376,12 @@ kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char data[CHANN
     return error;
 }
 
-kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* data, uint16_t size) {
+static kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* data, uint16_t size) {
     if (size != 9) {
         return KELP_PROTOCOL;
     }
     uint8_t device_id = data[0];
-    if (!valid_device_id(device_id)) {
+    if (!is_valid_device_id(device_id)) {
         return KELP_INVALID_ID;
     }
 
@@ -429,14 +431,14 @@ kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* data, ui
     error = check_driver_error(driver_channel_id);
     KELP_RETURN_ON_ERROR(error);
 
-    int64_t response;
-    error = com_get_int64_blocking(driver_channel_id, &response, &reason);
+    uint32_t response;
+    error = com_get_uint32_blocking(driver_channel_id, &response, &reason);
     KELP_RETURN_ON_ERROR(error);
     if (reason != REASON_BLOCK_WRITE_BYTES) {
         return KELP_WRONG_REASON;
     }
 
-    return com_send_int64_blocking(channel_id, response, REASON_BLOCK_WRITE_BYTES);
+    return com_send_uint32_blocking(channel_id, response, REASON_BLOCK_WRITE_BYTES);
 }
 
 void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
@@ -553,7 +555,9 @@ void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
                         break;
                     case REASON_BLOCK_SIZE:
                         // get device id from channel
-                        if (block_devices[data].driver_pid == 0) {
+                        if (!is_valid_device_id(data)) {
+                            error = KELP_INVALID_ID;
+                        } else if (block_devices[data].driver_pid == 0) {
                             error = KELP_NO_EXIST;
                         } else {
                             error = com_send_uint32_blocking(channel_id, block_devices[data].block_size, REASON_BLOCK_SIZE);
@@ -564,7 +568,9 @@ void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
                         break;
                     case REASON_BLOCK_COUNT:
                         // get device id from channel
-                        if (block_devices[data].driver_pid == 0) {
+                        if (!is_valid_device_id(data)) {
+                            error = KELP_INVALID_ID;
+                        } else if (block_devices[data].driver_pid == 0) {
                             error = KELP_NO_EXIST;
                         } else {
                             error = com_send_uint32_blocking(channel_id, block_devices[data].block_count, REASON_BLOCK_COUNT);
