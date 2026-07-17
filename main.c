@@ -350,7 +350,6 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     task_add(kelp_task_block_service, BLOCK_SERVICE_PID, 89);
 
     // start drivers
-    // task_add(kelp_task_usb_hid_driver, USB_HID_DRIVER_PID, 88);
     task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 88);
     task_add(kelp_task_sd_card_driver, SD_CARD_DRIVER_PID, 89);
     task_add(kelp_task_usb_host_driver, USB_HOST_DRIVER_PID, 89);

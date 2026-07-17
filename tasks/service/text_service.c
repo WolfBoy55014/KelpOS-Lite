@@ -198,7 +198,6 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
         kelp_error_t error = get_connected_channels(channel_ids, &num_connected, NUM_CHANNELS);
 
         if (error != KELP_OK) {
-            task_sleep_ms(5);
             continue;
         }
 

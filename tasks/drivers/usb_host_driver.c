@@ -455,20 +455,13 @@ static bool inquiry_complete_cb(uint8_t dev_addr, const tuh_msc_complete_data_t*
     const msc_csw_t* csw = cb_data->csw;
 
     if (csw->status != 0) {
-        printf("Inquiry failed\r\n");
+        // printf("Inquiry failed\r\n");
         return false;
     }
-
-    // Print out Vendor ID, Product ID and Rev
-    printf("%.8s %.16s %.4s\r\n", scsi_resp.inquiry.vendor_id, scsi_resp.inquiry.product_id,
-           scsi_resp.inquiry.product_rev);
 
     // Get capacity of device
     const uint32_t block_count = tuh_msc_get_block_count(dev_addr, cbw->lun);
     const uint32_t block_size = tuh_msc_get_block_size(dev_addr, cbw->lun);
-
-    printf("Disk Size: %" PRIu32 " %" PRIu32 "-byte blocks: %" PRIu32 " MB\r\n",
-           block_count, block_size, block_count / ((1024 * 1024) / block_size));
 
     uint8_t msc_id = dev_addr - 1;
     uint8_t device_id;
@@ -488,15 +481,12 @@ static bool inquiry_complete_cb(uint8_t dev_addr, const tuh_msc_complete_data_t*
 }
 
 void tuh_msc_mount_cb(uint8_t dev_addr) {
-    printf("A MassStorage device (addr = %u) is mounted\r\n", dev_addr);
-
     const uint8_t lun = 0;
     tuh_msc_inquiry(dev_addr, lun, &scsi_resp.inquiry, inquiry_complete_cb, 0);
 }
 
 void tuh_msc_umount_cb(uint8_t dev_addr) {
     uint8_t msc_id = dev_addr - 1;
-    printf("A MassStorage device is unmounted\r\n");
 
     // If a transfer was in flight on this device, it will never complete
     // now - free the buffer and tell the waiting channel rather than
