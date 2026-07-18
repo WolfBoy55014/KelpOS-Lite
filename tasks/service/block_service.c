@@ -12,6 +12,7 @@
 #include "scheduler.h"
 #include "error_codes.h"
 #include "kernel_config.h"
+#include "hardware/gpio.h"
 
 static struct block_device_t block_devices[BLOCK_SERVICE_MAX_DEVICES];
 
@@ -210,17 +211,23 @@ kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t 
     char packet[9];
     build_block_request_packet(packet, device_id, start, count);
 
+    BLOCK_SERVICE_ACTIVITY_LED_ON;
     error = com_send_char_array_fast_blocking(channel_id, packet, 9, REASON_BLOCK_READ_BYTES);
-    KELP_RETURN_ON_ERROR(error);
+    if (error != KELP_OK) {
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
+        return error;
+    }
 
     // check if service replied with an error
     error = check_driver_error(channel_id);
     if (error != KELP_OK) {
-        return error; // KELP_OK means no error int32 was sent (expected data follows)
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
+        return error;
     }
 
     uint16_t reason;
     error = com_get_char_array_blocking(channel_id, buffer, buffer_size, bytes_read, &reason);
+    BLOCK_SERVICE_ACTIVITY_LED_OFF;
     KELP_RETURN_ON_ERROR(error);
 
     if (reason != REASON_BLOCK_READ_BYTES) {
@@ -242,22 +249,30 @@ kelp_error_t kelp_block_write_bytes(uint8_t device_id, uint8_t* buffer, uint32_t
 
     char packet[9];
     build_block_request_packet(packet, device_id, start, count);
-
+    BLOCK_SERVICE_ACTIVITY_LED_ON;
     error = com_send_char_array_fast_blocking(channel_id, packet, 9, REASON_BLOCK_WRITE_BYTES);
-    KELP_RETURN_ON_ERROR(error);
+    if (error != KELP_OK) {
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
+        return error;
+    }
 
     error = com_send_char_array_blocking(channel_id, buffer, buffer_size, REASON_BLOCK_WRITE_BYTES);
-    KELP_RETURN_ON_ERROR(error);
+    if (error != KELP_OK) {
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
+        return error;
+    }
 
     // check if service replied with an error
     error = check_driver_error(channel_id);
     if (error != KELP_OK) {
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
         return error;
     }
 
     uint16_t reason;
     uint32_t response;
     error = com_get_uint32_blocking(channel_id, &response, &reason);
+    BLOCK_SERVICE_ACTIVITY_LED_OFF;
     KELP_RETURN_ON_ERROR(error);
 
     if (reason != REASON_BLOCK_WRITE_BYTES) {
@@ -266,7 +281,7 @@ kelp_error_t kelp_block_write_bytes(uint8_t device_id, uint8_t* buffer, uint32_t
 
 
     if (bytes_written != NULL) {
-        *bytes_written = (uint32_t)response;
+        *bytes_written = response;
     } else {
         return KELP_ERROR;
     }
@@ -317,15 +332,19 @@ static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char da
     kelp_error_t error = kelp_block_add_device(&device_id, get_channel_partner_pid(channel_id), block_size, block_count);
     KELP_RETURN_ON_ERROR(error);
 
-    com_send_int32_blocking(channel_id, device_id, REASON_BLOCK_MOUNT);
-    return KELP_OK;
+    BLOCK_SERVICE_ACTIVITY_LED_ON;
+    error = com_send_int32_blocking(channel_id, device_id, REASON_BLOCK_MOUNT);
+    BLOCK_SERVICE_ACTIVITY_LED_OFF;
+    return error;
 }
 
 static kelp_error_t kelp_block_handle_unmount_request(uint16_t channel_id, uint8_t device_id) {
     if (!is_valid_device_id(device_id)) {
         return KELP_INVALID_ID;
     }
+    BLOCK_SERVICE_ACTIVITY_LED_ON;
     kelp_error_t error = kelp_block_remove_device(get_channel_partner_pid(channel_id), device_id);
+    BLOCK_SERVICE_ACTIVITY_LED_OFF;
     return error;
 }
 
@@ -445,6 +464,12 @@ void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
     task_request_stack(256);
 
     uint32_t l = 0;
+
+#if BLOCK_SERVICE_ACTIVITY_LED >= 0
+    gpio_init(BLOCK_SERVICE_ACTIVITY_LED);
+    gpio_set_dir(BLOCK_SERVICE_ACTIVITY_LED, GPIO_OUT);
+    gpio_put(BLOCK_SERVICE_ACTIVITY_LED, false);
+#endif
 
     for (uint32_t i = 0; i < BLOCK_SERVICE_MAX_DEVICES; i++) {
         struct block_device_t* device = &block_devices[i];
