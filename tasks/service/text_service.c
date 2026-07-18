@@ -74,7 +74,7 @@ kelp_error_t kelp_text_read_input_char(char* c) {
     }
 
     if (reason != REASON_TEXT_READ_INPUT_CHAR) {
-        return KELP_PROTOCOL;
+        return KELP_WRONG_REASON;
     }
 
     return KELP_OK;
@@ -135,7 +135,7 @@ kelp_error_t kelp_text_read_output_char(char* c) {
     }
 
     if (reason != REASON_TEXT_READ_OUTPUT_CHAR) {
-        return KELP_PROTOCOL;
+        return KELP_WRONG_REASON;
     }
 
     return KELP_OK;
@@ -178,7 +178,7 @@ char get_char_from_output_buffer() {
 }
 
 void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
-    task_request_stack(128);
+    task_request_stack(256);
 
     uint32_t l = 0;
 
@@ -198,12 +198,11 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
         kelp_error_t error = get_connected_channels(channel_ids, &num_connected, NUM_CHANNELS);
 
         if (error != KELP_OK) {
-            task_sleep_ms(5);
             continue;
         }
 
         // check for messages
-        for (int c = 0; c < num_connected; c++) {
+        for (uint32_t c = 0; c < num_connected; c++) {
             uint16_t channel_id = channel_ids[c];
 
             // can we read from this channel?
@@ -326,6 +325,6 @@ void kelp_task_text_service(uint32_t pid, uint32_t* signals, char* args) {
 
         l++;
 
-        task_yield();
+        task_sleep_us(250);
     }
 }

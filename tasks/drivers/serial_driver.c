@@ -10,7 +10,7 @@
 void kelp_serial_driver(uint32_t pid, uint32_t* signals, char* args) {
     stdio_init_all();
 
-    task_request_stack(128);
+    task_request_stack(256);
 
     uint32_t l = 0;
 
