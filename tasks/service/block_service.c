@@ -357,10 +357,15 @@ static kelp_error_t kelp_block_handle_unmount_request(uint16_t channel_id, uint8
 
 static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
     if (size != 9) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_PROTOCOL, REASON_BLOCK_ERROR);
         return KELP_PROTOCOL;
     }
+    
     uint8_t device_id = data[0];
     if (!is_valid_device_id(device_id)) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_INVALID_ID, REASON_BLOCK_ERROR);
         return KELP_INVALID_ID;
     }
 
@@ -378,10 +383,16 @@ static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char dat
 
     // check if driver returned an error
     error = check_driver_error(driver_channel_id);
-    KELP_RETURN_ON_ERROR(error);
+    if (error != KELP_OK) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+        return error;
+    }
 
     uint8_t* buffer = malloc(return_buffer_size);
     if (!buffer) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_MEMORY, REASON_BLOCK_ERROR);
         return KELP_MEMORY;
     }
 
@@ -390,24 +401,36 @@ static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char dat
     error = com_get_char_array_blocking(driver_channel_id, buffer, return_buffer_size, &num_bytes_read, &reason);
     if (error != KELP_OK) {
         free(buffer);
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
         return error;
     }
     if (reason != REASON_BLOCK_READ_BYTES) {
         free(buffer);
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_WRONG_REASON, REASON_BLOCK_ERROR);
         return KELP_WRONG_REASON;
     }
 
     error = com_send_char_array_blocking(channel_id, buffer, num_bytes_read, REASON_BLOCK_READ_BYTES);
     free(buffer);
+    
+    // Always send error code (including success as 0)
+    com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
     return error;
 }
 
 static kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* data, uint16_t size) {
     if (size != 9) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_PROTOCOL, REASON_BLOCK_ERROR);
         return KELP_PROTOCOL;
     }
+    
     uint8_t device_id = data[0];
     if (!is_valid_device_id(device_id)) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_INVALID_ID, REASON_BLOCK_ERROR);
         return KELP_INVALID_ID;
     }
 
@@ -423,6 +446,8 @@ static kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* d
     // get buffer to write from caller
     uint8_t* buffer = malloc(buffer_size);
     if (!buffer) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_MEMORY, REASON_BLOCK_ERROR);
         return KELP_MEMORY;
     }
 
@@ -431,14 +456,20 @@ static kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* d
     error = com_get_char_array_blocking(channel_id, buffer, buffer_size, &received_buffer_size, &reason);
     if (error != KELP_OK) {
         free(buffer);
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
         return error;
     }
     if (reason != REASON_BLOCK_WRITE_BYTES) {
         free(buffer);
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_WRONG_REASON, REASON_BLOCK_ERROR);
         return KELP_WRONG_REASON;
     }
     if (buffer_size != received_buffer_size) {
         free(buffer);
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_PROTOCOL, REASON_BLOCK_ERROR);
         return KELP_PROTOCOL;
     }
 
@@ -446,6 +477,8 @@ static kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* d
     error = com_send_char_array_blocking(driver_channel_id, data, size, REASON_BLOCK_WRITE_BYTES);
     if (error != KELP_OK) {
         free(buffer);
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
         return error;
     }
 
@@ -455,16 +488,28 @@ static kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* d
 
     // check if driver returned an error
     error = check_driver_error(driver_channel_id);
-    KELP_RETURN_ON_ERROR(error);
+    if (error != KELP_OK) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+        return error;
+    }
 
     uint32_t response;
     error = com_get_uint32_blocking(driver_channel_id, &response, &reason);
-    KELP_RETURN_ON_ERROR(error);
+    if (error != KELP_OK) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+        return error;
+    }
     if (reason != REASON_BLOCK_WRITE_BYTES) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_WRONG_REASON, REASON_BLOCK_ERROR);
         return KELP_WRONG_REASON;
     }
 
-    return com_send_uint32_blocking(channel_id, response, REASON_BLOCK_WRITE_BYTES);
+    // Always send error code (including success as 0)
+    com_send_int32_blocking(channel_id, (int32_t)response, REASON_BLOCK_ERROR);
+    return KELP_OK;
 }
 
 void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
