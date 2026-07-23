@@ -79,7 +79,7 @@ void* kelp_nullfs_mount(uint8_t device_id) {
 
     uint32_t bytes_read;
     error = kelp_block_read_bytes(device_id, buffer, block_size, &bytes_read, 1, 1);
-    if (error != KELP_OK | bytes_read != block_size) {
+    if (error != KELP_OK || bytes_read != block_size) {
         free(buffer);
         free(context);
         return NULL;
@@ -92,7 +92,7 @@ void* kelp_nullfs_mount(uint8_t device_id) {
     memcpy(buffer, &boot_count, sizeof(boot_count));
     uint32_t bytes_written;
     error = kelp_block_write_bytes(device_id, buffer, block_size, &bytes_written, 1, 1);
-    if (error != KELP_OK | bytes_written != block_size) {
+    if (error != KELP_OK || bytes_written != block_size) {
         free(buffer);
         free(context);
         return NULL;

@@ -19,7 +19,6 @@ static kelp_fs_manager_t kelp_fs_manager;
 static kelp_error_t check_service_error(uint16_t channel_id) {
     uint8_t type;
     com_channel_wait_until_readable(channel_id);
-    com_channel_wait_until_readable(channel_id);
     kelp_error_t error = com_channel_peek(channel_id, &type);
     KELP_RETURN_ON_ERROR(error);
 
@@ -36,7 +35,7 @@ static kelp_error_t check_service_error(uint16_t channel_id) {
     return KELP_OK;
 }
 
-static uint16_t get_free_mount() {
+static int16_t get_free_mount() {
     for (int8_t i = 0; i < FILE_SERVICE_MAX_MOUNTS; i++) {
         kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[i];
         if (!mount->active) {
@@ -124,7 +123,7 @@ static kelp_error_t kelp_fs_handle_mount_request(uint16_t channel_id, uint8_t de
         return KELP_ID_TAKEN;
     }
 
-    uint16_t mount_id = get_free_mount();
+    int16_t mount_id = get_free_mount();
     printf("File Service Found Free Slot\n");
     if (mount_id < 0) {
         return KELP_NONE_FREE;
