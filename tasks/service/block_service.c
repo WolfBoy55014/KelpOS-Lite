@@ -327,23 +327,31 @@ static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char da
 
     uint8_t device_id = 0;
     kelp_error_t error = kelp_block_add_device(&device_id, get_channel_partner_pid(channel_id), block_size, block_count);
-    KELP_RETURN_ON_ERROR(error);
-
+    
     BLOCK_SERVICE_ACTIVITY_LED_ON;
-    error = com_send_int32_blocking(channel_id, device_id, REASON_BLOCK_MOUNT);
+    // Always send error code (including success as 0)
+    com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
     kelp_fs_device_connected(device_id);
     BLOCK_SERVICE_ACTIVITY_LED_OFF;
+    
     return error;
 }
 
 static kelp_error_t kelp_block_handle_unmount_request(uint16_t channel_id, uint8_t device_id) {
     if (!is_valid_device_id(device_id)) {
+        // Always send error code (including success as 0)
+        com_send_int32_blocking(channel_id, (int32_t)KELP_INVALID_ID, REASON_BLOCK_ERROR);
         return KELP_INVALID_ID;
     }
+    
     BLOCK_SERVICE_ACTIVITY_LED_ON;
     kelp_error_t error = kelp_block_remove_device(get_channel_partner_pid(channel_id), device_id);
     kelp_fs_device_removed(device_id);
+    
+    // Always send error code (including success as 0)
+    com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
     BLOCK_SERVICE_ACTIVITY_LED_OFF;
+    
     return error;
 }
 
