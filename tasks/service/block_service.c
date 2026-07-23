@@ -40,22 +40,18 @@ static inline void build_block_request_packet(char packet[9], uint8_t device_id,
 
 // Check if a driver channel response is an error, and if so extract and return it
 static inline kelp_error_t check_driver_error(uint16_t driver_channel_id) {
-    uint8_t type;
+    int32_t driver_error;
+    uint16_t error_reason;
+    
     com_channel_wait_until_readable(driver_channel_id);
-    kelp_error_t error = com_channel_peek(driver_channel_id, &type);
+    kelp_error_t error = com_get_int32_blocking(driver_channel_id, &driver_error, &error_reason);
     KELP_RETURN_ON_ERROR(error);
-
-    if (type == COM_TYPE_INT32) {
-        int32_t driver_error;
-        uint16_t error_reason;
-        error = com_get_int32_blocking(driver_channel_id, &driver_error, &error_reason);
-        KELP_RETURN_ON_ERROR(error);
-        if (error_reason != REASON_BLOCK_ERROR) {
-            return KELP_WRONG_REASON;
-        }
-        return (kelp_error_t)driver_error;
+    
+    if (error_reason == REASON_BLOCK_ERROR) {
+        return (kelp_error_t)driver_error;  // Return the actual error code
     }
-    return KELP_OK;
+    
+    return KELP_OK;  // No error - success case
 }
 
 // Check the device_id is in bounds
