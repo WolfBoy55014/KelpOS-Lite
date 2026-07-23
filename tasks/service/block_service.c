@@ -11,6 +11,7 @@
 #include "com_channel_protocol.h"
 #include "scheduler.h"
 #include "error_codes.h"
+#include "file_service.h"
 #include "kernel_config.h"
 #include "hardware/gpio.h"
 
@@ -334,6 +335,7 @@ static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char da
 
     BLOCK_SERVICE_ACTIVITY_LED_ON;
     error = com_send_int32_blocking(channel_id, device_id, REASON_BLOCK_MOUNT);
+    kelp_fs_device_connected(device_id);
     BLOCK_SERVICE_ACTIVITY_LED_OFF;
     return error;
 }
@@ -344,6 +346,7 @@ static kelp_error_t kelp_block_handle_unmount_request(uint16_t channel_id, uint8
     }
     BLOCK_SERVICE_ACTIVITY_LED_ON;
     kelp_error_t error = kelp_block_remove_device(get_channel_partner_pid(channel_id), device_id);
+    kelp_fs_device_removed(device_id);
     BLOCK_SERVICE_ACTIVITY_LED_OFF;
     return error;
 }

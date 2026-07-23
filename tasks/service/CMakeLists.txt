@@ -8,6 +8,7 @@ add_library(tasks_service INTERFACE)
 target_sources(tasks_service INTERFACE
         text_service.c
         block_service.c
+        file_service.c
 )
 
 target_include_directories(tasks_service INTERFACE

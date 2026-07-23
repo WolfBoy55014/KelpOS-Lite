@@ -4,6 +4,7 @@
 #include "block_service.h"
 #include "channel.h"
 #include "com_channel_protocol.h"
+#include "file_service.h"
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
 
@@ -247,6 +248,51 @@ void disk_write_task(uint32_t pid, uint32_t* signals, char* args) {
     }
 }
 
+void nullfs_format_task(uint32_t pid, uint32_t* signals, char* args) {
+    task_request_stack(4096);
+    task_sleep_ms(5000);
+
+    printf("Writing Magic for NullFS\n");
+
+    uint8_t device_id = 0;
+    uint32_t sector = 0;
+
+    uint32_t block_size = 0;
+    kelp_error_t error = kelp_block_get_block_size(device_id, &block_size);
+    if (error != KELP_OK) {
+        printf("Error getting block size: %ld\n", error);
+        return;
+    }
+    printf("Device Block Size is %lu bytes\n", block_size);
+
+    uint32_t block_count = 0;
+    error = kelp_block_get_block_count(device_id, &block_count);
+    if (error != KELP_OK) {
+        printf("Error getting block count: %ld\n", error);
+        return;
+    }
+    printf("Device Block Size is %lu bytes\n", block_count);
+
+    if (block_size < 5) {
+        printf("Block Size too small for NullFS\n");
+    }
+
+    uint8_t* buffer = malloc(block_size);
+
+    strcpy(buffer, "null");
+
+    // write magic
+    printf("\nWriting NullFS Magic to Device\n");
+    uint32_t bytes_written = 0;
+    error = kelp_block_write_bytes(device_id, buffer, block_size, &bytes_written, sector, 1);
+
+    free(buffer);
+    if (error != KELP_OK) {
+        printf("Error writing Magic: %ld\n", error);
+        return;
+    }
+}
+
 #define TEST_DATA_SIZE 4096
 #define BUFFER_SIZE TEST_DATA_SIZE
 
@@ -348,6 +394,7 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     // start services
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);
     task_add(kelp_task_block_service, BLOCK_SERVICE_PID, 89);
+    task_add(kelp_task_file_service, FILE_SERVICE_PID, 89);
 
     // start drivers
     task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 88);

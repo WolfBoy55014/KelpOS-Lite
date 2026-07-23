@@ -208,12 +208,13 @@ void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
                 if (sd_card_detect(sd_card_p) && !details->initialized) {
                     if (sd_card_p->init(sd_card_p)) {
                         uint8_t device_id;
-                        kelp_error_t error = kelp_block_mount_device(&device_id, 512, sd_card_p->get_num_sectors(sd_card_p));
+                        uint32_t block_count = sd_card_p->get_num_sectors(sd_card_p);
+                        kelp_error_t error = kelp_block_mount_device(&device_id, 512, block_count);
 
                         if (error == KELP_OK) {
                             device_id_2_sd_id[device_id] = id;
                             details->initialized = true;
-                            details->block_count = sd_card_p->get_num_sectors(sd_card_p);
+                            details->block_count = block_count;
                             details->size = details->block_count * 512;
                         }
                     }
