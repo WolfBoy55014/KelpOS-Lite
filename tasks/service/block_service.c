@@ -40,22 +40,18 @@ static inline void build_block_request_packet(char packet[9], uint8_t device_id,
 
 // Check if a driver channel response is an error, and if so extract and return it
 static inline kelp_error_t check_driver_error(uint16_t driver_channel_id) {
-    uint8_t type;
+    int32_t driver_error;
+    uint16_t error_reason;
+    
     com_channel_wait_until_readable(driver_channel_id);
-    kelp_error_t error = com_channel_peek(driver_channel_id, &type);
+    kelp_error_t error = com_get_int32_blocking(driver_channel_id, &driver_error, &error_reason);
     KELP_RETURN_ON_ERROR(error);
-
-    if (type == COM_TYPE_INT32) {
-        int32_t driver_error;
-        uint16_t error_reason;
-        error = com_get_int32_blocking(driver_channel_id, &driver_error, &error_reason);
-        KELP_RETURN_ON_ERROR(error);
-        if (error_reason != REASON_BLOCK_ERROR) {
-            return KELP_WRONG_REASON;
-        }
-        return (kelp_error_t)driver_error;
+    
+    if (error_reason == REASON_BLOCK_ERROR) {
+        return (kelp_error_t)driver_error;  // Return the actual error code
     }
-    return KELP_OK;
+    
+    return KELP_OK;  // No error - success case
 }
 
 // Check the device_id is in bounds
@@ -119,17 +115,14 @@ kelp_error_t kelp_block_mount_device(uint8_t* device_id, uint32_t block_size, ui
     error = com_get_int32_blocking(channel_id, &return_code, &reason);
     KELP_RETURN_ON_ERROR(error);
 
-    if (reason == REASON_BLOCK_ERROR) {
-          return (kelp_error_t)return_code; // enums are just ints and can be sent through the channels as such
+    // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+    com_send_int32_blocking(channel_id, (int32_t)return_code, REASON_BLOCK_ERROR);
+    
+    if (return_code == KELP_OK) {
+        *device_id = (uint8_t)return_code;
     }
-
-    if (reason != REASON_BLOCK_MOUNT) {
-        return KELP_WRONG_REASON;
-    }
-
-    *device_id = (uint8_t)return_code;
-
-    return KELP_OK;
+    
+    return (kelp_error_t)return_code;
 }
 
 kelp_error_t kelp_block_unmount_device(uint8_t device_id) {
@@ -140,14 +133,13 @@ kelp_error_t kelp_block_unmount_device(uint8_t device_id) {
     error = com_send_uint32_blocking(channel_id, device_id, REASON_BLOCK_UNMOUNT);
     KELP_RETURN_ON_ERROR(error);
 
-    // get confirmation
-
+    // get confirmation - always expect error code via REASON_BLOCK_ERROR
     int32_t error_code;
     uint16_t reason;
-
+    
     error = com_get_int32_blocking(channel_id, &error_code, &reason);
     KELP_RETURN_ON_ERROR(error);
-
+    
     if (reason != REASON_BLOCK_ERROR) {
         return KELP_WRONG_REASON;
     }
@@ -319,149 +311,202 @@ static kelp_error_t kelp_block_remove_device(uint32_t pid, uint8_t device_id) {
         kelp_block_reset_device(driver);
         return KELP_OK;
     }
-    return KELP_NO_TASK;
-}
+    static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
+        if (size != 8) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_PROTOCOL, REASON_BLOCK_ERROR);
+            return KELP_PROTOCOL;
+        }
+    
+        uint32_t block_size = get_uint32_be(&data[0]);
+        uint32_t block_count = get_uint32_be(&data[4]);
 
-static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
-    if (size != 8) {
-        return KELP_PROTOCOL;
-    }
-    uint32_t block_size = get_uint32_be(&data[0]);
-    uint32_t block_count = get_uint32_be(&data[4]);
-
-    uint8_t device_id = 0;
-    kelp_error_t error = kelp_block_add_device(&device_id, get_channel_partner_pid(channel_id), block_size, block_count);
-    KELP_RETURN_ON_ERROR(error);
-
-    BLOCK_SERVICE_ACTIVITY_LED_ON;
-    error = com_send_int32_blocking(channel_id, device_id, REASON_BLOCK_MOUNT);
-    kelp_fs_device_connected(device_id);
-    BLOCK_SERVICE_ACTIVITY_LED_OFF;
-    return error;
-}
-
-static kelp_error_t kelp_block_handle_unmount_request(uint16_t channel_id, uint8_t device_id) {
-    if (!is_valid_device_id(device_id)) {
-        return KELP_INVALID_ID;
-    }
-    BLOCK_SERVICE_ACTIVITY_LED_ON;
-    kelp_error_t error = kelp_block_remove_device(get_channel_partner_pid(channel_id), device_id);
-    kelp_fs_device_removed(device_id);
-    BLOCK_SERVICE_ACTIVITY_LED_OFF;
-    return error;
-}
-
-static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
-    if (size != 9) {
-        return KELP_PROTOCOL;
-    }
-    uint8_t device_id = data[0];
-    if (!is_valid_device_id(device_id)) {
-        return KELP_INVALID_ID;
-    }
-
-    struct block_device_t* block_driver = &block_devices[device_id];
-    uint32_t count = get_uint32_be(&data[5]);
-    uint32_t return_buffer_size = count * block_driver->block_size;
-    uint32_t driver_pid = block_driver->driver_pid;
-
-    uint16_t driver_channel_id = 0;
-    kelp_error_t error = com_channel_request_blocking(driver_pid, true, &driver_channel_id);
-    KELP_RETURN_ON_ERROR(error);
-
-    error = com_send_char_array_fast_blocking(driver_channel_id, data, 9, REASON_BLOCK_READ_BYTES);
-    KELP_RETURN_ON_ERROR(error);
-
-    // check if driver returned an error
-    error = check_driver_error(driver_channel_id);
-    KELP_RETURN_ON_ERROR(error);
-
-    uint8_t* buffer = malloc(return_buffer_size);
-    if (!buffer) {
-        return KELP_MEMORY;
-    }
-
-    uint32_t num_bytes_read = 0;
-    uint16_t reason;
-    error = com_get_char_array_blocking(driver_channel_id, buffer, return_buffer_size, &num_bytes_read, &reason);
-    if (error != KELP_OK) {
-        free(buffer);
-        return error;
-    }
-    if (reason != REASON_BLOCK_READ_BYTES) {
-        free(buffer);
-        return KELP_WRONG_REASON;
-    }
-
-    error = com_send_char_array_blocking(channel_id, buffer, num_bytes_read, REASON_BLOCK_READ_BYTES);
-    free(buffer);
-    return error;
-}
-
-static kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* data, uint16_t size) {
-    if (size != 9) {
-        return KELP_PROTOCOL;
-    }
-    uint8_t device_id = data[0];
-    if (!is_valid_device_id(device_id)) {
-        return KELP_INVALID_ID;
-    }
-
-    struct block_device_t* block_driver = &block_devices[device_id];
-    uint32_t count = get_uint32_be(&data[5]);
-    uint32_t buffer_size = count * block_driver->block_size;
-    uint32_t driver_pid = block_driver->driver_pid;
-
-    uint16_t driver_channel_id = 0;
-    kelp_error_t error = com_channel_request_blocking(driver_pid, true, &driver_channel_id);
-    KELP_RETURN_ON_ERROR(error);
-
-    // get buffer to write from caller
-    uint8_t* buffer = malloc(buffer_size);
-    if (!buffer) {
-        return KELP_MEMORY;
-    }
-
-    uint32_t received_buffer_size = 0;
-    uint16_t reason;
-    error = com_get_char_array_blocking(channel_id, buffer, buffer_size, &received_buffer_size, &reason);
-    if (error != KELP_OK) {
-        free(buffer);
-        return error;
-    }
-    if (reason != REASON_BLOCK_WRITE_BYTES) {
-        free(buffer);
-        return KELP_WRONG_REASON;
-    }
-    if (buffer_size != received_buffer_size) {
-        free(buffer);
-        return KELP_PROTOCOL;
-    }
-
-    // send header + data to driver
-    error = com_send_char_array_blocking(driver_channel_id, data, size, REASON_BLOCK_WRITE_BYTES);
-    if (error != KELP_OK) {
-        free(buffer);
+        uint8_t device_id = 0;
+        kelp_error_t error = kelp_block_add_device(&device_id, get_channel_partner_pid(channel_id), block_size, block_count);
+    
+        BLOCK_SERVICE_ACTIVITY_LED_ON;
+        // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+        com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+        kelp_fs_device_connected(device_id);
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
+    
         return error;
     }
 
-    error = com_send_char_array_blocking(driver_channel_id, buffer, buffer_size, REASON_BLOCK_WRITE_BYTES);
-    free(buffer);
-    KELP_RETURN_ON_ERROR(error);
-
-    // check if driver returned an error
-    error = check_driver_error(driver_channel_id);
-    KELP_RETURN_ON_ERROR(error);
-
-    uint32_t response;
-    error = com_get_uint32_blocking(driver_channel_id, &response, &reason);
-    KELP_RETURN_ON_ERROR(error);
-    if (reason != REASON_BLOCK_WRITE_BYTES) {
-        return KELP_WRONG_REASON;
+    static kelp_error_t kelp_block_handle_unmount_request(uint16_t channel_id, uint8_t device_id) {
+        if (!is_valid_device_id(device_id)) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_INVALID_ID, REASON_BLOCK_ERROR);
+            return KELP_INVALID_ID;
+        }
+    
+        BLOCK_SERVICE_ACTIVITY_LED_ON;
+        kelp_error_t error = kelp_block_remove_device(get_channel_partner_pid(channel_id), device_id);
+        kelp_fs_device_removed(device_id);
+    
+        // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+        com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
+    
+        return error;
     }
 
-    return com_send_uint32_blocking(channel_id, response, REASON_BLOCK_WRITE_BYTES);
-}
+    static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
+        if (size != 9) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_PROTOCOL, REASON_BLOCK_ERROR);
+            return KELP_PROTOCOL;
+        }
+    
+        uint8_t device_id = data[0];
+        if (!is_valid_device_id(device_id)) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_INVALID_ID, REASON_BLOCK_ERROR);
+            return KELP_INVALID_ID;
+        }
+
+        struct block_device_t* block_driver = &block_devices[device_id];
+        uint32_t count = get_uint32_be(&data[5]);
+        uint32_t return_buffer_size = count * block_driver->block_size;
+        uint32_t driver_pid = block_driver->driver_pid;
+
+        uint16_t driver_channel_id = 0;
+        kelp_error_t error = com_channel_request_blocking(driver_pid, true, &driver_channel_id);
+        KELP_RETURN_ON_ERROR(error);
+
+        error = com_send_char_array_fast_blocking(driver_channel_id, data, 9, REASON_BLOCK_READ_BYTES);
+        KELP_RETURN_ON_ERROR(error);
+
+        // check if driver returned an error
+        error = check_driver_error(driver_channel_id);
+        if (error != KELP_OK) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+            return error;
+        }
+
+        uint8_t* buffer = malloc(return_buffer_size);
+        if (!buffer) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_MEMORY, REASON_BLOCK_ERROR);
+            return KELP_MEMORY;
+        }
+
+        uint32_t num_bytes_read = 0;
+        uint16_t reason;
+        error = com_get_char_array_blocking(driver_channel_id, buffer, return_buffer_size, &num_bytes_read, &reason);
+        if (error != KELP_OK) {
+            free(buffer);
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+            return error;
+        }
+        if (reason != REASON_BLOCK_READ_BYTES) {
+            free(buffer);
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_WRONG_REASON, REASON_BLOCK_ERROR);
+            return KELP_WRONG_REASON;
+        }
+
+        error = com_send_char_array_blocking(channel_id, buffer, num_bytes_read, REASON_BLOCK_READ_BYTES);
+        free(buffer);
+    
+        // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+        com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+        return error;
+    }
+
+    static kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* data, uint16_t size) {
+        if (size != 9) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_PROTOCOL, REASON_BLOCK_ERROR);
+            return KELP_PROTOCOL;
+        }
+    
+        uint8_t device_id = data[0];
+        if (!is_valid_device_id(device_id)) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_INVALID_ID, REASON_BLOCK_ERROR);
+            return KELP_INVALID_ID;
+        }
+
+        struct block_device_t* block_driver = &block_devices[device_id];
+        uint32_t count = get_uint32_be(&data[5]);
+        uint32_t buffer_size = count * block_driver->block_size;
+        uint32_t driver_pid = block_driver->driver_pid;
+
+        uint16_t driver_channel_id = 0;
+        kelp_error_t error = com_channel_request_blocking(driver_pid, true, &driver_channel_id);
+        KELP_RETURN_ON_ERROR(error);
+
+        // get buffer to write from caller
+        uint8_t* buffer = malloc(buffer_size);
+        if (!buffer) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_MEMORY, REASON_BLOCK_ERROR);
+            return KELP_MEMORY;
+        }
+
+        uint32_t received_buffer_size = 0;
+        uint16_t reason;
+        error = com_get_char_array_blocking(channel_id, buffer, buffer_size, &received_buffer_size, &reason);
+        if (error != KELP_OK) {
+            free(buffer);
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+            return error;
+        }
+        if (reason != REASON_BLOCK_WRITE_BYTES) {
+            free(buffer);
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_WRONG_REASON, REASON_BLOCK_ERROR);
+            return KELP_WRONG_REASON;
+        }
+        if (buffer_size != received_buffer_size) {
+            free(buffer);
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_PROTOCOL, REASON_BLOCK_ERROR);
+            return KELP_PROTOCOL;
+        }
+
+        // send header + data to driver
+        error = com_send_char_array_blocking(driver_channel_id, data, size, REASON_BLOCK_WRITE_BYTES);
+        if (error != KELP_OK) {
+            free(buffer);
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+            return error;
+        }
+
+        error = com_send_char_array_blocking(driver_channel_id, buffer, buffer_size, REASON_BLOCK_WRITE_BYTES);
+        free(buffer);
+        KELP_RETURN_ON_ERROR(error);
+
+        // check if driver returned an error
+        error = check_driver_error(driver_channel_id);
+        if (error != KELP_OK) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+            return error;
+        }
+
+        uint32_t response;
+        error = com_get_uint32_blocking(driver_channel_id, &response, &reason);
+        if (error != KELP_OK) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)error, REASON_BLOCK_ERROR);
+            return error;
+        }
+        if (reason != REASON_BLOCK_WRITE_BYTES) {
+            // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+            com_send_int32_blocking(channel_id, (int32_t)KELP_WRONG_REASON, REASON_BLOCK_ERROR);
+            return KELP_WRONG_REASON;
+        }
+
+        // Always send error code (including success as 0) via REASON_BLOCK_ERROR
+        com_send_int32_blocking(channel_id, (int32_t)response, REASON_BLOCK_ERROR);
+        return KELP_OK;
+    }
 
 void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
     task_request_stack(256);

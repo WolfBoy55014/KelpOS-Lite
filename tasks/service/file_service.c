@@ -14,25 +14,20 @@
 #include "scheduler.h"
 
 static kelp_fs_manager_t kelp_fs_manager;
-
 // Check if a driver channel response is an error, and if so extract and return it
 static kelp_error_t check_service_error(uint16_t channel_id) {
-    uint8_t type;
+    int32_t driver_error;
+    uint16_t error_reason;
+    
     com_channel_wait_until_readable(channel_id);
-    kelp_error_t error = com_channel_peek(channel_id, &type);
+    kelp_error_t error = com_get_int32_blocking(channel_id, &driver_error, &error_reason);
     KELP_RETURN_ON_ERROR(error);
-
-    if (type == COM_TYPE_INT32) {
-        int32_t driver_error;
-        uint16_t error_reason;
-        error = com_get_int32_blocking(channel_id, &driver_error, &error_reason);
-        KELP_RETURN_ON_ERROR(error);
-        if (error_reason != REASON_FILE_ERROR) {
-            return KELP_WRONG_REASON;
-        }
-        return (kelp_error_t)driver_error;
+    
+    if (error_reason == REASON_FILE_ERROR) {
+        return (kelp_error_t)driver_error;  // Return the actual error code
     }
-    return KELP_OK;
+    
+    return KELP_OK;  // No error - success case
 }
 
 static int16_t get_free_mount() {
