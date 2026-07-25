@@ -31,6 +31,9 @@
 #define REASON_BLOCK_GET_DRIVER_PID 39487
 #define REASON_BLOCK_ERROR 4908
 
+#define KELP_BLOCK_CHECK_FOR_SERVICE_ERROR error = com_check_for_error_blocking(channel_id, &service_error); KELP_RETURN_ON_ERROR(error); KELP_RETURN_ON_ERROR(service_error);
+#define KELP_BLOCK_CHECK_FOR_DRIVER_ERROR error = com_check_for_error_blocking(driver_channel_id, &driver_error); KELP_RETURN_ON_ERROR(error); KELP_RETURN_ON_ERROR(driver_error);
+
 #include <stdint.h>
 
 #include "error_codes.h"

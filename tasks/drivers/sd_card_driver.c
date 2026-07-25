@@ -282,18 +282,14 @@ void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
                     case REASON_BLOCK_READ_BYTES:
                         // send the requested bytes
                         error = kelp_sd_handle_read_request(channel_id, data, size);
-                        if (error != KELP_OK) {
-                            com_send_int32_blocking(channel_id, error, REASON_BLOCK_ERROR);
-                        }
+                        com_send_error_blocking(channel_id, error);
                         break;
                     case REASON_BLOCK_WRITE_BYTES:
                         // write the provided bytes
                         error = kelp_sd_handle_write_request(channel_id, data, size);
-                        if (error != KELP_OK) {
-                            com_send_int32_blocking(channel_id, error, REASON_BLOCK_ERROR);
-                        }
+                        com_send_error_blocking(channel_id, error);
                         break;
-                    default: continue;
+                    default: break;
                     }
                 }
             }

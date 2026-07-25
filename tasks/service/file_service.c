@@ -15,26 +15,6 @@
 
 static kelp_fs_manager_t kelp_fs_manager;
 
-// Check if a driver channel response is an error, and if so extract and return it
-static kelp_error_t check_service_error(uint16_t channel_id) {
-    uint8_t type;
-    com_channel_wait_until_readable(channel_id);
-    kelp_error_t error = com_channel_peek(channel_id, &type);
-    KELP_RETURN_ON_ERROR(error);
-
-    if (type == COM_TYPE_INT32) {
-        int32_t driver_error;
-        uint16_t error_reason;
-        error = com_get_int32_blocking(channel_id, &driver_error, &error_reason);
-        KELP_RETURN_ON_ERROR(error);
-        if (error_reason != REASON_FILE_ERROR) {
-            return KELP_WRONG_REASON;
-        }
-        return (kelp_error_t)driver_error;
-    }
-    return KELP_OK;
-}
-
 static int16_t get_free_mount() {
     for (int8_t i = 0; i < FILE_SERVICE_MAX_MOUNTS; i++) {
         kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[i];
@@ -103,7 +83,11 @@ kelp_error_t kelp_fs_mount(uint8_t device_id) {
     error = com_send_uint32_blocking(channel_id, device_id, REASON_FILE_MOUNT);
     KELP_RETURN_ON_ERROR(error);
 
-    return check_service_error(channel_id);
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+
+    return service_error;
 }
 
 kelp_error_t kelp_fs_unmount(uint8_t device_id) {
@@ -114,7 +98,11 @@ kelp_error_t kelp_fs_unmount(uint8_t device_id) {
     error = com_send_uint32_blocking(channel_id, device_id, REASON_FILE_UNMOUNT);
     KELP_RETURN_ON_ERROR(error);
 
-    return check_service_error(channel_id);
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+
+    return service_error;
 }
 
 static kelp_error_t kelp_fs_handle_mount_request(uint16_t channel_id, uint8_t device_id) {
@@ -288,12 +276,12 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                     case REASON_FILE_MOUNT:
                         // get device id from channel
                         error = kelp_fs_handle_mount_request(channel_id, (uint8_t)data);
-                        com_send_int32_blocking(channel_id, error, REASON_FILE_ERROR);
+                        com_send_error_blocking(channel_id, error);
                         break;
                     case REASON_FILE_UNMOUNT:
                         // get device id from channel
                         error = kelp_fs_handle_unmount_request(channel_id, (uint8_t)data);
-                        com_send_int32_blocking(channel_id, error, REASON_FILE_ERROR);
+                        com_send_error_blocking(channel_id, error);
                         break;
                     default: break;
                     }
