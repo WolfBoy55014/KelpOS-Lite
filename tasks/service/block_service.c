@@ -50,16 +50,19 @@ static inline bool is_valid_device_id(uint8_t device_id) {
 }
 
 static uint32_t kelp_block_get_driver_pid(uint8_t device_id) {
+    BLOCK_SERVICE_ACTIVITY_LED_ON;
     // send request
     uint16_t channel_id = 0;
     kelp_error_t error = com_channel_request_blocking(BLOCK_SERVICE_PID, true, &channel_id);
     if (error != KELP_OK) {
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
         return 0;
     }
 
     // send request to service
     error = com_send_uint32_blocking(channel_id, device_id, REASON_BLOCK_GET_DRIVER_PID);
     if (error != KELP_OK) {
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
         return 0;
     }
 
@@ -67,6 +70,7 @@ static uint32_t kelp_block_get_driver_pid(uint8_t device_id) {
     kelp_error_t service_error;
     error = com_check_for_error_blocking(channel_id, &service_error);
     if (service_error != KELP_OK || error != KELP_OK) {
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
         return 0;
     }
 
@@ -75,19 +79,23 @@ static uint32_t kelp_block_get_driver_pid(uint8_t device_id) {
     uint16_t reason;
     error = com_get_uint32_blocking(channel_id, &response, &reason);
     if (error != KELP_OK) {
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
         return 0;
     }
 
     if (reason != REASON_BLOCK_GET_DRIVER_PID) {
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
         return 0;
     }
 
     // check for service error
     error = com_check_for_error_blocking(channel_id, &service_error);
     if (service_error != KELP_OK || error != KELP_OK) {
+        BLOCK_SERVICE_ACTIVITY_LED_OFF;
         return 0;
     }
 
+    BLOCK_SERVICE_ACTIVITY_LED_OFF;
     return response;
 }
 
@@ -120,10 +128,6 @@ kelp_error_t kelp_block_mount_device(uint8_t* device_id, uint32_t block_size, ui
 
     error = com_get_uint32_blocking(channel_id, &return_code, &reason);
     KELP_RETURN_ON_ERROR(error);
-
-    if (reason == REASON_BLOCK_ERROR) {
-          return (kelp_error_t)return_code; // enums are just ints and can be sent through the channels as such
-    }
 
     if (reason != REASON_BLOCK_MOUNT) {
         return KELP_WRONG_REASON;
@@ -211,19 +215,14 @@ kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t 
     char packet[9];
     build_block_request_packet(packet, device_id, start, count);
 
-    BLOCK_SERVICE_ACTIVITY_LED_ON;
     error = com_send_char_array_fast_blocking(channel_id, packet, 9, REASON_BLOCK_READ_BYTES);
-    if (error != KELP_OK) {
-        BLOCK_SERVICE_ACTIVITY_LED_OFF;
-        return error;
-    }
+    KELP_RETURN_ON_ERROR(error);
 
     kelp_error_t service_error;
     KELP_BLOCK_CHECK_FOR_SERVICE_ERROR;
 
     uint16_t reason;
     error = com_get_char_array_blocking(channel_id, buffer, buffer_size, bytes_read, &reason);
-    BLOCK_SERVICE_ACTIVITY_LED_OFF;
     KELP_RETURN_ON_ERROR(error);
 
     if (reason != REASON_BLOCK_READ_BYTES) {
@@ -247,21 +246,14 @@ kelp_error_t kelp_block_write_bytes(uint8_t device_id, uint8_t* buffer, uint32_t
 
     char packet[9];
     build_block_request_packet(packet, device_id, start, count);
-    BLOCK_SERVICE_ACTIVITY_LED_ON;
     error = com_send_char_array_fast_blocking(channel_id, packet, 9, REASON_BLOCK_WRITE_BYTES);
-    if (error != KELP_OK) {
-        BLOCK_SERVICE_ACTIVITY_LED_OFF;
-        return error;
-    }
+    KELP_RETURN_ON_ERROR(error);
 
     // TODO: we need to check, but this will return empty, as handler sends nothing
     // KELP_BLOCK_CHECK_FOR_SERVICE_ERROR;
 
     error = com_send_char_array_blocking(channel_id, buffer, buffer_size, REASON_BLOCK_WRITE_BYTES);
-    if (error != KELP_OK) {
-        BLOCK_SERVICE_ACTIVITY_LED_OFF;
-        return error;
-    }
+    KELP_RETURN_ON_ERROR(error);
 
     kelp_error_t service_error;
     KELP_BLOCK_CHECK_FOR_SERVICE_ERROR;
@@ -269,7 +261,6 @@ kelp_error_t kelp_block_write_bytes(uint8_t device_id, uint8_t* buffer, uint32_t
     uint16_t reason;
     uint32_t response;
     error = com_get_uint32_blocking(channel_id, &response, &reason);
-    BLOCK_SERVICE_ACTIVITY_LED_OFF;
     KELP_RETURN_ON_ERROR(error);
 
     if (reason != REASON_BLOCK_WRITE_BYTES) {
@@ -351,7 +342,7 @@ static kelp_error_t kelp_block_handle_unmount_request(uint16_t channel_id, uint8
 static kelp_error_t kelp_block_handle_driver_pid_request(uint16_t channel_id, uint8_t device_id) {
     struct block_device_t* device = &block_devices[device_id];
 
-    uint32_t driver_pid = BLOCK_SERVICE_PID;
+    uint32_t driver_pid = 0;
     if (device->block_count > 0) {
         driver_pid = device->driver_pid;
     }
@@ -449,7 +440,6 @@ static kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* d
     }
 
     // send header + data to driver
-    // TODO: shouldn't this be fast? (does this even work?)
     error = com_send_char_array_fast_blocking(driver_channel_id, data, size, REASON_BLOCK_WRITE_BYTES);
     if (error != KELP_OK) {
         free(buffer);

@@ -214,9 +214,7 @@ static void kelp_msc_service_completions() {
             } else {
                 error = KELP_IO;
             }
-            if (error != KELP_OK) {
-                com_send_int32_blocking(req->channel_id, error, REASON_BLOCK_ERROR);
-            }
+            com_send_error_blocking(req->channel_id, error);
         } else if (req->state == MSC_REQ_WRITE_PENDING) {
             kelp_error_t error;
             if (req->success) {
@@ -224,9 +222,7 @@ static void kelp_msc_service_completions() {
             } else {
                 error = KELP_IO;
             }
-            if (error != KELP_OK) {
-                com_send_int32_blocking(req->channel_id, error, REASON_BLOCK_ERROR);
-            }
+            com_send_error_blocking(req->channel_id, error);
         }
 
         free(req->buffer);
@@ -366,18 +362,14 @@ static void kelp_update_msc_driver() {
                 case REASON_BLOCK_READ_BYTES:
                     // send the requested bytes
                     error = kelp_msc_handle_read_request(channel_id, data, size);
-                    if (error != KELP_OK) {
-                        com_send_int32_blocking(channel_id, error, REASON_BLOCK_ERROR);
-                    }
+                    com_send_error_blocking(channel_id, error);
                     break;
                 case REASON_BLOCK_WRITE_BYTES:
                     // write the provided bytes
                     error = kelp_msc_handle_write_request(channel_id, data, size);
-                    if (error != KELP_OK) {
-                        com_send_int32_blocking(channel_id, error, REASON_BLOCK_ERROR);
-                    }
+                    com_send_error_blocking(channel_id, error);
                     break;
-                default: continue;
+                default: break;
                 }
             }
         }
