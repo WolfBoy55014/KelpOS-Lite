@@ -234,7 +234,7 @@ kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t 
     return KELP_OK;
 }
 
-kelp_error_t kelp_block_write_bytes(uint8_t device_id, uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_written, uint32_t start, uint32_t count) {
+kelp_error_t kelp_block_write_bytes(uint8_t device_id, const uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_written, uint32_t start, uint32_t count) {
     uint32_t driver_pid = kelp_block_get_driver_pid(device_id);
     if (driver_pid == 0) {
         driver_pid = BLOCK_SERVICE_PID;

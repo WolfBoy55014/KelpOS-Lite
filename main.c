@@ -404,7 +404,7 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
 
-    task_add(disk_speed_task, 12, 88);
+    // task_add(disk_speed_task, 12, 88);
 
     while (1) {
         task_sleep_ms(1000);

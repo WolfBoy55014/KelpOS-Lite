@@ -4,7 +4,6 @@
 
 #ifndef KELPOS_LITE_NULLFS_H
 #define KELPOS_LITE_NULLFS_H
-#include <stddef.h>
 
 #include "file_service.h"
 

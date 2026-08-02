@@ -10,6 +10,7 @@
 #include "channel.h"
 #include "com_channel_protocol.h"
 #include "kernel_config.h"
+#include "littlefs.h"
 #include "nullfs.h"
 #include "scheduler.h"
 
@@ -171,19 +172,26 @@ static kelp_error_t kelp_fs_handle_unmount_request(uint16_t channel_id, uint8_t 
     uint8_t plugin_id = mount->plugin_id;
     const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[plugin_id];
 
+    printf("File Service Attempting to Unmount %s\n", plugin->name);
+
     kelp_error_t error = plugin->unmount(mount);
-    KELP_RETURN_ON_ERROR(error);
+    if (error != KELP_OK) {
+        printf("File Service Error Attempting to Unmount %s\n", plugin->name);
+        return error;
+    }
 
     clear_mount(mount);
 
     kelp_fs_manager.num_mounts--;
+    printf("File Service Successfully Unmounted %s\n", plugin->name);
 
     return KELP_OK;
 }
 
 static void kelp_fs_init_plugins() {
     kelp_fs_manager.plugins[0] = &kelp_nullfs_plugin;
-    kelp_fs_manager.num_plugins = 1;
+    kelp_fs_manager.plugins[1] = &kelp_lfsv2_plugin;
+    kelp_fs_manager.num_plugins = 2;
 }
 
 void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
