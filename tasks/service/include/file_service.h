@@ -14,6 +14,7 @@
 
 #define FILE_SERVICE_MAX_MOUNTS 4
 #define FILE_SERVICE_MAX_PLUGINS 4
+#define FILE_SERVICE_MAX_FILES 16
 
 #define FILE_SERVICE_MAX_NAME 256
 
@@ -24,9 +25,29 @@
 #define REASON_FILE_MOUNT 25678
 #define REASON_FILE_UNMOUNT 7890
 #define REASON_FILE_OPEN 6789
+#define REASON_FILE_OPEN_PATH 6790
+#define REASON_FILE_OPEN_FLAGS 6791
+#define REASON_FILE_OPEN_HANDLE 6792
 #define REASON_FILE_CLOSE 342
 #define REASON_FILE_READ 8902
+#define REASON_FILE_READ_LEN 8903
+#define REASON_FILE_READ_BYTES 8904
 #define REASON_FILE_WRITE 34561
+#define REASON_FILE_WRITE_LEN 34562
+#define REASON_FILE_WRITE_BYTES 34563
+#define REASON_FILE_SEEK 8905
+#define REASON_FILE_SEEK_OFFSET 8906
+#define REASON_FILE_SEEK_WHENCE 8907
+#define REASON_FILE_TELL 8908
+#define REASON_FILE_TELL_POS 8909
+#define REASON_FILE_SIZE 8910
+#define REASON_FILE_SIZE_VAL 8911
+#define REASON_FILE_STAT 8912
+#define REASON_FILE_STAT_PATH 8913
+#define REASON_FILE_STAT_OUT 8914
+
+/* Max path length for single-channel send */
+#define FILE_SERVICE_MAX_PATH_LEN 255
 
 // ------- Mount Struct ------+
 typedef struct {
@@ -162,10 +183,18 @@ struct kelp_fs_backend_plugin {
 // Internal Structs
 // ---------------------------+
 
+// ------ File Table Struct -----+
+typedef struct {
+    void* handle;        // actual file handle from the plugin
+    uint8_t mount_id;    // which mount this file belongs to
+    bool active;
+} kelp_fs_file_t;
+
 // ------ Manager Struct -----+
 typedef struct {
     const kelp_fs_backend_plugin_t* plugins[FILE_SERVICE_MAX_PLUGINS];
     kelp_fs_mount_t mounts[FILE_SERVICE_MAX_MOUNTS];
+    kelp_fs_file_t files[FILE_SERVICE_MAX_FILES];
     uint8_t num_plugins;
     uint8_t num_mounts;
 } kelp_fs_manager_t;
@@ -186,5 +215,62 @@ kelp_error_t kelp_fs_unmount(uint8_t device_id);
 
 // file service task
 void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args);
+
+// ------- File Operations API -------
+
+/* Open a file on a mounted device. Returns a file descriptor (int16_t) or error. */
+kelp_error_t kelp_fs_open(uint8_t device_id, const char* path,
+                          uint32_t flags, int16_t* fd);
+
+/* Close a file by its file descriptor. */
+kelp_error_t kelp_fs_close(int16_t fd);
+
+/* Read bytes from a file. Returns bytes read or error. */
+kelp_error_t kelp_fs_read(int16_t fd, void* buf, uint32_t len, uint32_t* bytes_read);
+
+/* Write bytes to a file. Returns bytes written or error. */
+kelp_error_t kelp_fs_write(int16_t fd, const void* buf, uint32_t len, uint32_t* bytes_written);
+
+/* Seek in a file. */
+kelp_error_t kelp_fs_seek(int16_t fd, int32_t offset, kelp_fs_seek_t whence);
+
+/* Get current file position. */
+kelp_error_t kelp_fs_tell(int16_t fd, uint32_t* pos);
+
+/* Get file size. */
+kelp_error_t kelp_fs_size(int16_t fd, uint32_t* size);
+
+/* Stat a file by path. */
+kelp_error_t kelp_fs_stat(uint8_t device_id, const char* path, kelp_fs_dirent_t* out);
+
+// file service task
+void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args);
+
+// ------- File Operations API (client-side) -------
+
+/* Open a file on a mounted device. Returns KELP_OK with fd in *fd_out on success. */
+kelp_error_t kelp_fs_open(uint8_t device_id, const char* path,
+                          uint32_t flags, int16_t* fd_out);
+
+/* Close a file by its file descriptor. */
+kelp_error_t kelp_fs_close(int16_t fd);
+
+/* Read bytes from a file. Returns bytes read in *bytes_read. */
+kelp_error_t kelp_fs_read(int16_t fd, void* buf, uint32_t len, uint32_t* bytes_read);
+
+/* Write bytes to a file. Returns bytes written in *bytes_written. */
+kelp_error_t kelp_fs_write(int16_t fd, const void* buf, uint32_t len, uint32_t* bytes_written);
+
+/* Seek in a file. */
+kelp_error_t kelp_fs_seek(int16_t fd, int32_t offset, kelp_fs_seek_t whence);
+
+/* Get current file position. */
+kelp_error_t kelp_fs_tell(int16_t fd, uint32_t* pos);
+
+/* Get file size. */
+kelp_error_t kelp_fs_size(int16_t fd, uint32_t* size);
+
+/* Stat a file by path. */
+kelp_error_t kelp_fs_stat(uint8_t device_id, const char* path, kelp_fs_dirent_t* out);
 
 #endif //KELPOS_LITE_FILE_SERVICE_H
