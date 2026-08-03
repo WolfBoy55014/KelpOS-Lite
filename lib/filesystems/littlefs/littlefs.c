@@ -81,6 +81,18 @@ const struct lfs_config kelp_lfsv2_default_cfg = {
     .block_cycles = 500,
 };
 
+static int translate_flags(uint32_t flags) {
+    int lfs_flags = 0;
+    if (flags & FS_O_RDONLY)  lfs_flags |= LFS_O_RDONLY;
+    if (flags & FS_O_WRONLY)  lfs_flags |= LFS_O_WRONLY;
+    if (flags & FS_O_RDWR)    lfs_flags |= LFS_O_RDWR;
+    if (flags & FS_O_CREAT)   lfs_flags |= LFS_O_CREAT;
+    if (flags & FS_O_EXCL)    lfs_flags |= LFS_O_EXCL;
+    if (flags & FS_O_TRUNC)   lfs_flags |= LFS_O_TRUNC;
+    if (flags & FS_O_APPEND)  lfs_flags |= LFS_O_APPEND;
+    return lfs_flags;
+}
+
 static struct lfs_config* build_config(uint8_t device_id) {
     uint32_t block_size;
     kelp_error_t error = kelp_block_get_block_size(device_id, &block_size);
@@ -177,7 +189,7 @@ bool kelp_lfsv2_probe(uint8_t device_id) {
         buffer[i] = ~buffer[i];
     }
 
-    bool valid = ~buffer[4] & 0b10000000; // valid bit must be 0
+    bool valid = (buffer[4] & 0b10000000) == 0; // decoded validity bit must be 0
     if (!valid) {
         free(buffer);
         printf("LittleFS V2 validity error at line %d\n", __LINE__);
@@ -221,7 +233,7 @@ void* kelp_lfsv2_mount(uint8_t device_id) {
     }
 
     int error = lfs_mount(lfs, cfg);
-    if (error) {
+    if (error < 0) {
         printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
         free(lfs);
         free(cfg);
@@ -258,16 +270,109 @@ kelp_error_t kelp_lfsv2_unmount(kelp_fs_mount_t* mount) {
     return KELP_OK;
 }
 
+kelp_error_t kelp_lfsv2_open(kelp_fs_mount_t* mount, const char* path,
+                             uint32_t flags, void** handle) {
+    lfs_file_t* file = malloc(sizeof(lfs_file_t));
+    if (file == NULL) {
+        printf("LittleFS V2 failed to malloc memory at %d\n", __LINE__);
+        return KELP_MEMORY;
+    }
+
+    struct lfs* lfs = mount->context;
+
+    int lfs_flags = translate_flags(flags);
+
+    int error = lfs_file_open(lfs, file, path, lfs_flags);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        free(file);
+        return error;
+    }
+
+    *handle = file;
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_close(kelp_fs_mount_t* mount, void* handle) {
+    int error = lfs_file_close(mount->context, handle);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+    free(handle);
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_read(kelp_fs_mount_t* mount, void* handle, void* buf, uint32_t len,
+                             uint32_t* bytes_read) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_file_read(lfs, handle, buf, len);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+
+    *bytes_read = (uint32_t)buf;
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_write(kelp_fs_mount_t* mount, void* handle, const void* buf, uint32_t len,
+                              uint32_t* bytes_written) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_file_write(lfs, handle, buf, len);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+
+    *bytes_written = (uint32_t)buf;
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_stat(kelp_fs_mount_t* mount, const char* path,
+                             kelp_fs_dirent_t* out) {
+    struct lfs* lfs = mount->context;
+    struct lfs_info info;
+
+    int error = lfs_stat(lfs, path, &info);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+
+    switch (info.type) {
+    case LFS_TYPE_REG:
+        out->type = FS_DT_FILE;
+        break;
+    case LFS_TYPE_DIR:
+        out->type = FS_DT_DIR;
+        break;
+    default:
+        out->type = FS_DT_UNKNOWN;
+    }
+
+    out->size = info.size;
+    out->modified = 0;
+
+    if (strlen(info.name) > FILE_SERVICE_MAX_NAME) {
+        return KELP_TOO_BIG;
+    }
+
+    strncpy(out->name, info.name, FILE_SERVICE_MAX_NAME + 1);
+
+    return KELP_OK;
+}
+
 const struct kelp_fs_backend_plugin kelp_lfsv2_plugin = {
     .name = "lfsv2",
     .probe = kelp_lfsv2_probe,
     .mount = kelp_lfsv2_mount,
     .unmount = kelp_lfsv2_unmount,
-    .open = NULL,
-    .close = NULL,
-    .read = NULL,
-    .write = NULL,
-    .stat = NULL,
+    .open = kelp_lfsv2_open,
+    .close = kelp_lfsv2_close,
+    .read = kelp_lfsv2_read,
+    .write = kelp_lfsv2_write,
+    .stat = kelp_lfsv2_stat,
     .max_name_len = LFS_NAME_MAX,
     .flags = 0,
 };

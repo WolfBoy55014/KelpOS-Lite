@@ -15,6 +15,8 @@
 #define FILE_SERVICE_MAX_MOUNTS 4
 #define FILE_SERVICE_MAX_PLUGINS 4
 
+#define FILE_SERVICE_MAX_NAME 256
+
 #define REASON_FILE_ERROR 45674
 #define REASON_FILE_OK 45674
 #define REASON_FILE_CONNECT 34678
@@ -50,9 +52,10 @@ typedef enum {
     FS_O_RDONLY  = 0x01,
     FS_O_WRONLY  = 0x02,
     FS_O_RDWR    = 0x03,
-    FS_O_CREAT   = 0x10,
-    FS_O_TRUNC   = 0x20,
-    FS_O_APPEND  = 0x40
+    FS_O_CREAT   = 0x04,
+    FS_O_EXCL    = 0x08,
+    FS_O_TRUNC   = 0x10,
+    FS_O_APPEND  = 0x20
 } kelp_fs_open_flags_t;
 
 /* Directory entry type */
@@ -65,7 +68,7 @@ typedef enum {
 
 /* Directory entry — returned by readdir */
 typedef struct {
-    char name[256];       // max filename length (FS_MAX_NAME)
+    char name[FILE_SERVICE_MAX_NAME + 1]; // max filename length (FS_MAX_NAME)
     kelp_fs_dtype_t type;
     uint32_t size;        // file size, 0 for dirs
     uint32_t modified;    // timestamp
@@ -88,12 +91,12 @@ typedef kelp_error_t (*kelp_fs_open_fn)(kelp_fs_mount_t* mount, const char* path
                                   uint32_t flags, void** handle);
 
 /* Close: close a file handle. */
-typedef kelp_error_t (*kelp_fs_close_fn)(void* handle);
+typedef kelp_error_t (*kelp_fs_close_fn)(kelp_fs_mount_t* mount, void* handle);
 
 /* Read/Write: transfer data through a file handle. */
-typedef kelp_error_t (*kelp_fs_read_fn)(void* handle, void* buf, uint32_t len,
+typedef kelp_error_t (*kelp_fs_read_fn)(kelp_fs_mount_t* mount, void* handle, void* buf, uint32_t len,
                                   uint32_t* bytes_read);
-typedef kelp_error_t (*kelp_fs_write_fn)(void* handle, const void* buf, uint32_t len,
+typedef kelp_error_t (*kelp_fs_write_fn)(kelp_fs_mount_t* mount, void* handle, const void* buf, uint32_t len,
                                    uint32_t* bytes_written);
 
 /* Seek/Tell/Size: position queries. */
