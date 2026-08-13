@@ -67,7 +67,7 @@ static inline uint32_t get_uint32_be(const char* data) {
            ((uint8_t)data[2] << 8)  |  (uint8_t)data[3];
 }
 
-static kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
+static kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char *data, uint16_t size) {
     if (size != 9) {
         return KELP_PROTOCOL;
     }

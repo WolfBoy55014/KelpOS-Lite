@@ -56,6 +56,39 @@ static void clear_mount(kelp_fs_mount_t* mount) {
     mount->device_id = 0;
 }
 
+static bool is_valid_mount(char mount_id) {
+    if (mount_id < 0 || mount_id >= FILE_SERVICE_MAX_MOUNTS) {
+        return false;
+    }
+    kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[mount_id];
+    if (!mount->active) {
+        return false;
+    }
+    return true;
+}
+
+// Extract device ID from virtual path like "/0/path/to/file"
+// Returns pointer to the actual path (after the device prefix)
+// Also writes the device ID to *device_id_out
+static const char* extract_device_path(const char* virtual_path, uint8_t* device_id_out) {
+    if (virtual_path == NULL || *virtual_path != '/') {
+        return NULL;
+    }
+
+    char* p = &virtual_path[1];
+    *device_id_out = (uint8_t)strtoul(&virtual_path[1], &p, 10);
+    if (p == &virtual_path[1]) {
+        return NULL; // didn't find any digits
+    }
+
+
+    if (*p != '/') {
+        return NULL;  // Invalid format: must be /D/...
+    }
+
+    return p + 1;  // Skip the trailing '/'
+}
+
 // non-blocking sibling to mount
 kelp_error_t kelp_fs_device_connected(uint8_t device_id) {
     uint16_t channel_id = 0;
@@ -104,6 +137,27 @@ kelp_error_t kelp_fs_unmount(uint8_t device_id) {
     KELP_RETURN_ON_ERROR(error);
 
     return service_error;
+}
+
+kelp_error_t kelp_fs_stat(const char* path, kelp_fs_dirent_t* out) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_char_array_blocking(channel_id, path, strlen(path) + 1, REASON_FILE_STAT);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
+
+    uint32_t size;
+    uint16_t reason;
+    error = com_get_char_array_blocking(channel_id, (char*)out, sizeof(kelp_fs_dirent_t), &size, &reason);
+    KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
 }
 
 static kelp_error_t kelp_fs_handle_mount_request(uint16_t channel_id, uint8_t device_id) {
@@ -188,6 +242,41 @@ static kelp_error_t kelp_fs_handle_unmount_request(uint16_t channel_id, uint8_t 
     return KELP_OK;
 }
 
+static kelp_error_t kelp_fs_handle_stat_request(uint16_t channel_id, char* data, uint16_t size) {
+    if (size > FILE_SERVICE_MAX_NAME) {
+        return KELP_TOO_BIG;
+    }
+
+    char* path = data;
+
+    // get mount id and path from path
+    uint8_t mount_id;
+    const char* device_path = extract_device_path(path, &mount_id);
+    if (device_path == NULL) {
+        return KELP_NO_EXIST;
+    }
+
+    // check mount exists
+    if (!is_valid_mount(mount_id)) {
+        return KELP_NO_EXIST;
+    }
+
+    // get mount
+    kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[mount_id];
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    printf("Getting stats of %s\n", device_path);
+
+    kelp_fs_dirent_t dirent;
+    kelp_error_t error = plugin->stat(mount, device_path, &dirent);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_char_array_blocking(channel_id, (char*)&dirent, sizeof(dirent), REASON_FILE_STAT);
+    KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
+}
+
 static void kelp_fs_init_plugins() {
     kelp_fs_manager.plugins[0] = &kelp_nullfs_plugin;
     kelp_fs_manager.plugins[1] = &kelp_lfsv2_plugin;
@@ -195,7 +284,7 @@ static void kelp_fs_init_plugins() {
 }
 
 void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
-    task_request_stack(256);
+    task_request_stack(512);
 
     uint32_t l = 0;
 
@@ -289,6 +378,27 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                     case REASON_FILE_UNMOUNT:
                         // get device id from channel
                         error = kelp_fs_handle_unmount_request(channel_id, (uint8_t)data);
+                        com_send_error_blocking(channel_id, error);
+                        break;
+                    default: break;
+                    }
+                } break;
+
+                case COM_TYPE_STR_I: {
+                    // get the reason
+                    uint16_t reason = 0;
+
+                    char data[FILE_SERVICE_MAX_NAME];
+                    uint32_t size;
+
+                    error = com_get_char_array(channel_id, data, FILE_SERVICE_MAX_NAME, &size, &reason);
+                    if (error != KELP_OK) {
+                        continue;
+                    }
+
+                    switch (reason) {
+                    case REASON_FILE_STAT:
+                        error = kelp_fs_handle_stat_request(channel_id, data, size);
                         com_send_error_blocking(channel_id, error);
                         break;
                     default: break;

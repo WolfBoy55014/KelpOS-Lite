@@ -310,7 +310,7 @@ static kelp_error_t kelp_block_remove_device(uint32_t pid, uint8_t device_id) {
     return KELP_NO_TASK;
 }
 
-static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
+static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char *data, uint16_t size) {
     if (size != 8) {
         return KELP_PROTOCOL;
     }
@@ -350,7 +350,7 @@ static kelp_error_t kelp_block_handle_driver_pid_request(uint16_t channel_id, ui
     return com_send_uint32_blocking(channel_id, driver_pid, REASON_BLOCK_GET_DRIVER_PID);
 }
 
-static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
+static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char *data, uint16_t size) {
     if (size != 9) {
         return KELP_PROTOCOL;
     }

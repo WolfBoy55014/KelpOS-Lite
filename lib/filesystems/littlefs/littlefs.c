@@ -17,13 +17,20 @@ static int kelp_lfsv2_block_device_read(const struct lfs_config* c, lfs_block_t 
         return LFS_ERR_INVAL;
     }
 
+    kelp_lfsv2_driver_context_t* driver_ctx = c->context;
+    uint32_t block_size = driver_ctx->block_size;
+    uint8_t device_id = driver_ctx->device_id;
+
     uint32_t bytes_read;
-    kelp_error_t error = kelp_block_read_bytes(0, buffer, size, &bytes_read, block, size / 512);
+    kelp_error_t error = kelp_block_read_bytes(device_id, buffer, size, &bytes_read, block, size / block_size);
     if (error != KELP_OK) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
         return LFS_ERR_IO;
     }
 
     if (bytes_read != size) {
+        printf("LittleFS V2 did not read specified bytes at line %d\n", __LINE__);
+        printf("Requested %lu, but got %lu\n", size, bytes_read);
         return LFS_ERR_IO;
     }
 
@@ -41,13 +48,19 @@ static int kelp_lfsv2_block_device_prog(const struct lfs_config* c, lfs_block_t 
         return LFS_ERR_INVAL;
     }
 
+    kelp_lfsv2_driver_context_t* driver_ctx = c->context;
+    uint32_t block_size = driver_ctx->block_size;
+    uint8_t device_id = driver_ctx->device_id;
+
     uint32_t bytes_written;
-    kelp_error_t error = kelp_block_write_bytes(0, buffer, size, &bytes_written, block, size / 512);
+    kelp_error_t error = kelp_block_write_bytes(device_id, buffer, size, &bytes_written, block, size / block_size);
     if (error != KELP_OK) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
         return LFS_ERR_IO;
     }
 
     if (bytes_written != size) {
+        printf("LittleFS V2 did not write specified bytes at line %d\n", __LINE__);
         return LFS_ERR_IO;
     }
 

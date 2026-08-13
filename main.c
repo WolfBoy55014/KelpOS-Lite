@@ -389,7 +389,7 @@ void channel_speed_test_task(uint32_t pid, uint32_t* signals, char* args) {
 }
 
 void system_task(uint32_t pid, uint32_t* signals, char* args) {
-    task_request_stack(256);
+    task_request_stack(512);
 
     // start services
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);
@@ -405,6 +405,13 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
 
     // task_add(disk_speed_task, 12, 88);
+
+    task_sleep_ms(10000);
+    printf("Starting Test\n");
+    kelp_fs_dirent_t dirent;
+    kelp_error_t error = kelp_fs_stat("/0/boot_count", &dirent);
+    printf("kelp_fs_stat returned with code %ld\n", error);
+    printf("Size of file: %lu\n", dirent.size);
 
     while (1) {
         task_sleep_ms(1000);

@@ -27,6 +27,7 @@
 #define REASON_FILE_CLOSE 342
 #define REASON_FILE_READ 8902
 #define REASON_FILE_WRITE 34561
+#define REASON_FILE_STAT 23597
 
 // ------- Mount Struct ------+
 typedef struct {
@@ -165,7 +166,7 @@ struct kelp_fs_backend_plugin {
 // ------ Manager Struct -----+
 typedef struct {
     const kelp_fs_backend_plugin_t* plugins[FILE_SERVICE_MAX_PLUGINS];
-    kelp_fs_mount_t mounts[FILE_SERVICE_MAX_MOUNTS];
+    kelp_fs_mount_t mounts[FILE_SERVICE_MAX_MOUNTS]; // TODO: Dynamically allocate?
     uint8_t num_plugins;
     uint8_t num_mounts;
 } kelp_fs_manager_t;
@@ -183,6 +184,8 @@ kelp_error_t kelp_fs_device_removed(uint8_t device_id);
 kelp_error_t kelp_fs_mount(uint8_t device_id);
 
 kelp_error_t kelp_fs_unmount(uint8_t device_id);
+
+kelp_error_t kelp_fs_stat(const char* path, kelp_fs_dirent_t* out);
 
 // file service task
 void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args);
