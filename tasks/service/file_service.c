@@ -691,7 +691,7 @@ static kelp_error_t kelp_fs_handle_tell_request(uint16_t channel_id, uint32_t ha
     const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
 
     uint32_t position;
-    kelp_error_t error = plugin->tell(mount, handle, &position);
+    kelp_error_t error = plugin->tell(mount, handle->handle, &position);
     KELP_RETURN_ON_ERROR(error);
 
     error = com_send_uint32_blocking(channel_id, position, REASON_FILE_TELL);

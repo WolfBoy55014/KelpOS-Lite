@@ -421,7 +421,6 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
 
     boot_count++;
 
-    uint32_t position;
     error = kelp_fs_seek(handle, 0, SEEK_SET);
     printf("kelp_fs_seek returned with code %ld\n", error);
 
@@ -432,6 +431,7 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     error = kelp_fs_seek(handle, 4, SEEK_SET);
     printf("kelp_fs_seek returned with code %ld\n", error);
 
+    uint32_t position;
     error = kelp_fs_tell(handle, &position);
     printf("kelp_fs_tell returned with code %ld\n", error);
     printf("cursor is at %lu\n", position);
