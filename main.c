@@ -416,11 +416,9 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     error = kelp_fs_read(handle, (uint8_t*)&boot_count, 4, &bytes_read);
     printf("kelp_fs_read returned with code %ld\n", error);
     printf("boot count is %lu\n", boot_count);
-    error = kelp_fs_close(handle);
-    printf("kelp_fs_close returned with code %ld\n", error);
     boot_count++;
-    error = kelp_fs_open("/0/boot_count", FS_O_CREAT | FS_O_RDWR, &handle);
-    printf("kelp_fs_open returned with code %ld\n", error);
+    error = kelp_fs_seek(handle, 0, SEEK_SET);
+    printf("kelp_fs_seek returned with code %ld\n", error);
     uint32_t bytes_written;
     error = kelp_fs_write(handle, (uint8_t*)&boot_count, 4, &bytes_written);
     printf("kelp_fs_write returned with code %ld\n", error);

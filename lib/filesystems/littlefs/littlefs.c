@@ -376,6 +376,18 @@ kelp_error_t kelp_lfsv2_stat(kelp_fs_mount_t* mount, const char* path,
     return KELP_OK;
 }
 
+// TODO: this only works with files, we will either need to get both to work together or have two functions
+kelp_error_t kelp_lfsv2_seek(kelp_fs_mount_t* mount, void* handle, int32_t offset, kelp_fs_seek_t whence) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_file_seek(lfs, handle, offset, whence);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+
+    return KELP_OK;
+}
+
 const struct kelp_fs_backend_plugin kelp_lfsv2_plugin = {
     .name = "lfsv2",
     .probe = kelp_lfsv2_probe,
@@ -386,6 +398,7 @@ const struct kelp_fs_backend_plugin kelp_lfsv2_plugin = {
     .read = kelp_lfsv2_read,
     .write = kelp_lfsv2_write,
     .stat = kelp_lfsv2_stat,
+    .seek = kelp_lfsv2_seek,
     .max_name_len = LFS_NAME_MAX,
     .flags = 0,
 };

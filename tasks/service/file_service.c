@@ -106,8 +106,13 @@ static bool is_valid_handle(uint32_t handle_id) {
     return true;
 }
 
+static uint32_t get_uint32_be(const uint8_t* data) {
+    return ((uint8_t)data[0] << 24) | ((uint8_t)data[1] << 16) |
+           ((uint8_t)data[2] << 8)  |  (uint8_t)data[3];
+}
+
 // Pack a 32-bit value into a buffer in big-endian
-static inline void put_uint32_be(uint8_t* data, uint32_t val) {
+static void put_uint32_be(uint8_t* data, uint32_t val) {
     data[0] = val >> 24;
     data[1] = val >> 16;
     data[2] = val >> 8;
@@ -316,6 +321,27 @@ kelp_error_t kelp_fs_write(uint32_t handle, const uint8_t* buffer, uint32_t leng
     return KELP_OK;
 }
 
+kelp_error_t kelp_fs_seek(uint32_t handle, int32_t offset, kelp_fs_seek_t whence) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    uint8_t packet[12];
+    put_uint32_be(packet, handle);
+    put_uint32_be(&packet[4], offset);
+    put_uint32_be(&packet[8], whence);
+
+    com_send_char_array_fast_blocking(channel_id, (char*)packet, 12, REASON_FILE_SEEK);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
+
+    return KELP_OK;
+}
+
 static kelp_error_t kelp_fs_handle_mount_request(uint16_t channel_id, uint8_t device_id) {
     // printf("File Service Received Mount Request\n");
     if (exists_mount_with_device(device_id)) {
@@ -511,7 +537,7 @@ static kelp_error_t kelp_fs_handle_close_request(uint16_t channel_id, uint32_t d
     return KELP_OK;
 }
 
-kelp_error_t kelp_fs_handle_read_request(uint16_t channel_id, uint64_t data) {
+static kelp_error_t kelp_fs_handle_read_request(uint16_t channel_id, uint64_t data) {
 
     uint32_t length = data >> 32;
     uint32_t handle_id = data & 0xFFFFFFFF;
@@ -548,7 +574,7 @@ kelp_error_t kelp_fs_handle_read_request(uint16_t channel_id, uint64_t data) {
     return KELP_OK;
 }
 
-kelp_error_t kelp_fs_handle_write_request(uint16_t channel_id, uint64_t data) {
+static kelp_error_t kelp_fs_handle_write_request(uint16_t channel_id, uint64_t data) {
 
     uint32_t length = data >> 32;
     uint32_t handle_id = data & 0xFFFFFFFF;
@@ -596,6 +622,34 @@ kelp_error_t kelp_fs_handle_write_request(uint16_t channel_id, uint64_t data) {
     KELP_RETURN_ON_ERROR(error);
 
     error = com_send_uint32_blocking(channel_id, bytes_written, REASON_FILE_WRITE);
+    KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
+}
+
+static kelp_error_t kelp_fs_handle_seek_request(uint16_t channel_id, uint8_t* data, uint32_t size) {
+    if (size != 12) {
+        return KELP_PROTOCOL;
+    }
+
+    uint32_t handle_id = get_uint32_be(data);
+    int32_t offset = (int32_t)get_uint32_be(&data[4]);
+    kelp_fs_seek_t whence = get_uint32_be(&data[8]);
+
+    if (!is_valid_handle(handle_id)) {
+        return KELP_NO_EXIST;
+    }
+
+    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[handle_id];
+
+    if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
+        return KELP_NOT_OWNER;
+    }
+
+    kelp_fs_mount_t* mount = handle->mount;
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    kelp_error_t error = plugin->seek(mount, handle->handle, offset, whence);
     KELP_RETURN_ON_ERROR(error);
 
     return KELP_OK;
@@ -675,7 +729,10 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
 
                     // do they want to mount a device?
                     switch (reason) {
-
+                    case REASON_FILE_SEEK:
+                        error = kelp_fs_handle_seek_request(channel_id, (uint8_t*)data, size);
+                        com_send_error_blocking(channel_id, error);
+                        break;
                     default: break;
                     }
                 } break;
@@ -743,7 +800,7 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                     // get the reason
                     uint16_t reason = 0;
 
-                    char data[FILE_SERVICE_MAX_NAME];
+                    char data[FILE_SERVICE_MAX_NAME]; // only works for paths
                     uint32_t size;
 
                     error = com_get_char_array(channel_id, data, FILE_SERVICE_MAX_NAME, &size, &reason);
@@ -763,6 +820,7 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                     default: break;
                     }
                 } break;
+
                 default: break;
                 }
             }
