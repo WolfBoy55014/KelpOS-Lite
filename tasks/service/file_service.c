@@ -342,6 +342,30 @@ kelp_error_t kelp_fs_seek(uint32_t handle, int32_t offset, kelp_fs_seek_t whence
     return KELP_OK;
 }
 
+kelp_error_t kelp_fs_tell(uint32_t handle, uint32_t* pos) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_uint32_blocking(channel_id, handle, REASON_FILE_TELL);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
+
+    uint16_t reason;
+    error = com_get_uint32_blocking(channel_id, pos, &reason);
+    KELP_RETURN_ON_ERROR(error);
+
+    if (reason != REASON_FILE_TELL) {
+        return KELP_WRONG_REASON;
+    }
+
+    return KELP_OK;
+}
+
 static kelp_error_t kelp_fs_handle_mount_request(uint16_t channel_id, uint8_t device_id) {
     // printf("File Service Received Mount Request\n");
     if (exists_mount_with_device(device_id)) {
@@ -411,10 +435,7 @@ static kelp_error_t kelp_fs_handle_unmount_request(uint16_t channel_id, uint8_t 
     // printf("File Service Attempting to Unmount %s\n", plugin->name);
 
     kelp_error_t error = plugin->unmount(mount);
-    if (error != KELP_OK) {
-        // printf("File Service Error Attempting to Unmount %s\n", plugin->name);
-        return error;
-    }
+    KELP_RETURN_ON_ERROR(error);
 
     clear_mount(mount);
 
@@ -515,12 +536,12 @@ static kelp_error_t kelp_fs_handle_open_request(uint16_t channel_id, char* data,
     return KELP_OK;
 }
 
-static kelp_error_t kelp_fs_handle_close_request(uint16_t channel_id, uint32_t data) {
-    if (!is_valid_handle(data)) {
+static kelp_error_t kelp_fs_handle_close_request(uint16_t channel_id, uint32_t handle_id) {
+    if (!is_valid_handle(handle_id)) {
         return KELP_NO_EXIST;
     }
 
-    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[data];
+    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[handle_id];
 
     if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
         return KELP_NOT_OWNER;
@@ -655,6 +676,30 @@ static kelp_error_t kelp_fs_handle_seek_request(uint16_t channel_id, uint8_t* da
     return KELP_OK;
 }
 
+static kelp_error_t kelp_fs_handle_tell_request(uint16_t channel_id, uint32_t handle_id) {
+    if (!is_valid_handle(handle_id)) {
+        return KELP_NO_EXIST;
+    }
+
+    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[handle_id];
+
+    if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
+        return KELP_NOT_OWNER;
+    }
+
+    kelp_fs_mount_t* mount = handle->mount;
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    uint32_t position;
+    kelp_error_t error = plugin->tell(mount, handle, &position);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_uint32_blocking(channel_id, position, REASON_FILE_TELL);
+    KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
+}
+
 static void kelp_fs_init_plugins() {
     kelp_fs_manager.plugins[0] = &kelp_nullfs_plugin;
     kelp_fs_manager.plugins[1] = &kelp_lfsv2_plugin;
@@ -768,6 +813,11 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                     case REASON_FILE_CLOSE:
                         error = kelp_fs_handle_close_request(channel_id, data);
                         com_send_error_blocking(channel_id, error);
+                        break;
+                    case REASON_FILE_TELL:
+                        error = kelp_fs_handle_tell_request(channel_id, data);
+                        com_send_error_blocking(channel_id, error);
+                        break;
                     default: break;
                     }
                 } break;

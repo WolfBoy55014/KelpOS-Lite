@@ -388,6 +388,18 @@ kelp_error_t kelp_lfsv2_seek(kelp_fs_mount_t* mount, void* handle, int32_t offse
     return KELP_OK;
 }
 
+kelp_error_t kelp_lfsv2_tell(kelp_fs_mount_t* mount, void* handle, uint32_t* pos) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_file_tell(lfs, handle);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+
+    *pos = (uint32_t)error;
+    return KELP_OK;
+}
+
 const struct kelp_fs_backend_plugin kelp_lfsv2_plugin = {
     .name = "lfsv2",
     .probe = kelp_lfsv2_probe,
@@ -399,6 +411,7 @@ const struct kelp_fs_backend_plugin kelp_lfsv2_plugin = {
     .write = kelp_lfsv2_write,
     .stat = kelp_lfsv2_stat,
     .seek = kelp_lfsv2_seek,
+    .tell = kelp_lfsv2_tell,
     .max_name_len = LFS_NAME_MAX,
     .flags = 0,
 };

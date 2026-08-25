@@ -30,6 +30,7 @@
 #define REASON_FILE_WRITE 34561
 #define REASON_FILE_STAT 23597
 #define REASON_FILE_SEEK 9034
+#define REASON_FILE_TELL 34908
 
 // ------- Mount Struct ------+
 typedef struct {
@@ -213,6 +214,8 @@ kelp_error_t kelp_fs_read(uint32_t handle, uint8_t* buffer, uint32_t length, uin
 kelp_error_t kelp_fs_write(uint32_t handle, const uint8_t* buffer, uint32_t length, uint32_t* bytes_written);
 
 kelp_error_t kelp_fs_seek(uint32_t handle, int32_t offset, kelp_fs_seek_t whence);
+
+kelp_error_t kelp_fs_tell(uint32_t handle, uint32_t* pos);
 
 // file service task
 void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args);
