@@ -316,7 +316,7 @@ kelp_error_t kelp_lfsv2_close(kelp_fs_mount_t* mount, void* handle) {
     return KELP_OK;
 }
 
-kelp_error_t kelp_lfsv2_read(kelp_fs_mount_t* mount, void* handle, void* buf, uint32_t len,
+kelp_error_t kelp_lfsv2_read(kelp_fs_mount_t* mount, void* handle, uint8_t* buf, uint32_t len,
                              uint32_t* bytes_read) {
     struct lfs* lfs = mount->context;
     int error = lfs_file_read(lfs, handle, buf, len);
@@ -325,11 +325,11 @@ kelp_error_t kelp_lfsv2_read(kelp_fs_mount_t* mount, void* handle, void* buf, ui
         return error;
     }
 
-    *bytes_read = (uint32_t)buf;
+    *bytes_read = (uint32_t)error;
     return KELP_OK;
 }
 
-kelp_error_t kelp_lfsv2_write(kelp_fs_mount_t* mount, void* handle, const void* buf, uint32_t len,
+kelp_error_t kelp_lfsv2_write(kelp_fs_mount_t* mount, void* handle, const uint8_t* buf, uint32_t len,
                               uint32_t* bytes_written) {
     struct lfs* lfs = mount->context;
     int error = lfs_file_write(lfs, handle, buf, len);
@@ -338,7 +338,7 @@ kelp_error_t kelp_lfsv2_write(kelp_fs_mount_t* mount, void* handle, const void* 
         return error;
     }
 
-    *bytes_written = (uint32_t)buf;
+    *bytes_written = (uint32_t)error;
     return KELP_OK;
 }
 

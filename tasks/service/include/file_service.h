@@ -12,8 +12,9 @@
 
 #define FILE_SERVICE_PID 202
 
-#define FILE_SERVICE_MAX_MOUNTS 4
-#define FILE_SERVICE_MAX_PLUGINS 4
+#define FILE_SERVICE_MAX_MOUNTS 4 // limit of uint8_t max
+#define FILE_SERVICE_MAX_PLUGINS 4 // limit of uint8_t max
+#define FILE_SERVICE_MAX_HANDLES 16 // limit of uint32_t max
 
 #define FILE_SERVICE_MAX_NAME 256
 
@@ -95,9 +96,9 @@ typedef kelp_error_t (*kelp_fs_open_fn)(kelp_fs_mount_t* mount, const char* path
 typedef kelp_error_t (*kelp_fs_close_fn)(kelp_fs_mount_t* mount, void* handle);
 
 /* Read/Write: transfer data through a file handle. */
-typedef kelp_error_t (*kelp_fs_read_fn)(kelp_fs_mount_t* mount, void* handle, void* buf, uint32_t len,
+typedef kelp_error_t (*kelp_fs_read_fn)(kelp_fs_mount_t* mount, void* handle, uint8_t* buf, uint32_t len,
                                   uint32_t* bytes_read);
-typedef kelp_error_t (*kelp_fs_write_fn)(kelp_fs_mount_t* mount, void* handle, const void* buf, uint32_t len,
+typedef kelp_error_t (*kelp_fs_write_fn)(kelp_fs_mount_t* mount, void* handle, const uint8_t* buf, uint32_t len,
                                    uint32_t* bytes_written);
 
 /* Seek/Tell/Size: position queries. */
@@ -163,10 +164,18 @@ struct kelp_fs_backend_plugin {
 // Internal Structs
 // ---------------------------+
 
+typedef struct {
+    void* handle;
+    kelp_fs_mount_t* mount;
+    bool active;
+    uint32_t owner_pid;
+} kelp_fs_handle_t;
+
 // ------ Manager Struct -----+
 typedef struct {
     const kelp_fs_backend_plugin_t* plugins[FILE_SERVICE_MAX_PLUGINS];
     kelp_fs_mount_t mounts[FILE_SERVICE_MAX_MOUNTS]; // TODO: Dynamically allocate?
+    kelp_fs_handle_t handles[FILE_SERVICE_MAX_HANDLES];
     uint8_t num_plugins;
     uint8_t num_mounts;
 } kelp_fs_manager_t;
@@ -186,6 +195,14 @@ kelp_error_t kelp_fs_mount(uint8_t device_id);
 kelp_error_t kelp_fs_unmount(uint8_t device_id);
 
 kelp_error_t kelp_fs_stat(const char* path, kelp_fs_dirent_t* out);
+
+kelp_error_t kelp_fs_open(const char* path, uint32_t flags, uint32_t* handle);
+
+kelp_error_t kelp_fs_close(uint32_t handle);
+
+kelp_error_t kelp_fs_read(uint32_t handle, uint8_t* buffer, uint32_t length, uint32_t* bytes_read);
+
+kelp_error_t kelp_fs_write(uint32_t handle, const uint8_t* buffer, uint32_t length, uint32_t* bytes_written);
 
 // file service task
 void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args);

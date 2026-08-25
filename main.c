@@ -406,12 +406,26 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
 
     // task_add(disk_speed_task, 12, 88);
 
-    task_sleep_ms(10000);
+    task_sleep_ms(1000);
     printf("Starting Test\n");
-    kelp_fs_dirent_t dirent;
-    kelp_error_t error = kelp_fs_stat("/0/boot_count", &dirent);
-    printf("kelp_fs_stat returned with code %ld\n", error);
-    printf("Size of file: %lu\n", dirent.size);
+    uint32_t handle;
+    uint32_t boot_count;
+    kelp_error_t error = kelp_fs_open("/0/boot_count", FS_O_CREAT | FS_O_RDWR, &handle);
+    printf("kelp_fs_open returned with code %ld\n", error);
+    uint32_t bytes_read;
+    error = kelp_fs_read(handle, (uint8_t*)&boot_count, 4, &bytes_read);
+    printf("kelp_fs_read returned with code %ld\n", error);
+    printf("boot count is %lu\n", boot_count);
+    error = kelp_fs_close(handle);
+    printf("kelp_fs_close returned with code %ld\n", error);
+    boot_count++;
+    error = kelp_fs_open("/0/boot_count", FS_O_CREAT | FS_O_RDWR, &handle);
+    printf("kelp_fs_open returned with code %ld\n", error);
+    uint32_t bytes_written;
+    error = kelp_fs_write(handle, (uint8_t*)&boot_count, 4, &bytes_written);
+    printf("kelp_fs_write returned with code %ld\n", error);
+    error = kelp_fs_close(handle);
+    printf("kelp_fs_close returned with code %ld\n", error);
 
     while (1) {
         task_sleep_ms(1000);
