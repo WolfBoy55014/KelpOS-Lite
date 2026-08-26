@@ -283,8 +283,8 @@ kelp_error_t kelp_lfsv2_unmount(kelp_fs_mount_t* mount) {
     return KELP_OK;
 }
 
-kelp_error_t kelp_lfsv2_open(kelp_fs_mount_t* mount, const char* path,
-                             uint32_t flags, void** handle) {
+kelp_error_t kelp_lfsv2_file_open(kelp_fs_mount_t* mount, const char* path,
+                                  uint32_t flags, void** handle) {
     lfs_file_t* file = malloc(sizeof(lfs_file_t));
     if (file == NULL) {
         printf("LittleFS V2 failed to malloc memory at %d\n", __LINE__);
@@ -306,7 +306,7 @@ kelp_error_t kelp_lfsv2_open(kelp_fs_mount_t* mount, const char* path,
     return KELP_OK;
 }
 
-kelp_error_t kelp_lfsv2_close(kelp_fs_mount_t* mount, void* handle) {
+kelp_error_t kelp_lfsv2_file_close(kelp_fs_mount_t* mount, void* handle) {
     int error = lfs_file_close(mount->context, handle);
     if (error < 0) {
         printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
@@ -316,8 +316,8 @@ kelp_error_t kelp_lfsv2_close(kelp_fs_mount_t* mount, void* handle) {
     return KELP_OK;
 }
 
-kelp_error_t kelp_lfsv2_read(kelp_fs_mount_t* mount, void* handle, uint8_t* buf, uint32_t len,
-                             uint32_t* bytes_read) {
+kelp_error_t kelp_lfsv2_file_read(kelp_fs_mount_t* mount, void* handle, uint8_t* buf, uint32_t len,
+                                  uint32_t* bytes_read) {
     struct lfs* lfs = mount->context;
     int error = lfs_file_read(lfs, handle, buf, len);
     if (error < 0) {
@@ -329,8 +329,8 @@ kelp_error_t kelp_lfsv2_read(kelp_fs_mount_t* mount, void* handle, uint8_t* buf,
     return KELP_OK;
 }
 
-kelp_error_t kelp_lfsv2_write(kelp_fs_mount_t* mount, void* handle, const uint8_t* buf, uint32_t len,
-                              uint32_t* bytes_written) {
+kelp_error_t kelp_lfsv2_file_write(kelp_fs_mount_t* mount, void* handle, const uint8_t* buf, uint32_t len,
+                                   uint32_t* bytes_written) {
     struct lfs* lfs = mount->context;
     int error = lfs_file_write(lfs, handle, buf, len);
     if (error < 0) {
@@ -340,6 +340,136 @@ kelp_error_t kelp_lfsv2_write(kelp_fs_mount_t* mount, void* handle, const uint8_
 
     *bytes_written = (uint32_t)error;
     return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_file_seek(kelp_fs_mount_t* mount, void* handle, int32_t offset, kelp_fs_seek_t whence) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_file_seek(lfs, handle, offset, whence);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_file_tell(kelp_fs_mount_t* mount, void* handle, uint32_t* pos) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_file_tell(lfs, handle);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+
+    *pos = (uint32_t)error;
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_file_size(kelp_fs_mount_t* mount, void* handle, uint32_t* size) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_file_size(lfs, handle);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+
+    *size = (uint32_t)error;
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_file_flush(kelp_fs_mount_t* mount, void* handle) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_file_sync(lfs, handle);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_file_truncate(kelp_fs_mount_t* mount, void* handle, uint32_t size) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_file_trunc(lfs, handle, size);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_file_rename(kelp_fs_mount_t* mount, const char* old_path, const char* new_path) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_rename(lfs, old_path, new_path);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_dir_mkdir(kelp_fs_mount_t* mount, const char* path) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_mkdir(lfs, path);
+    if (error < 0) {
+        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_dir_opendir(kelp_fs_mount_t* mount, const char* path, void** dir_handle) {
+    lfs_dir_t* dir = malloc(sizeof(lfs_dir_t));
+    if (dir == NULL) {
+        return KELP_MEMORY;
+    }
+
+    struct lfs* lfs = mount->context;
+    int error = lfs_dir_open(lfs, dir, path);
+    if (error < 0) {
+        free(dir);
+        return error;
+    }
+
+    *dir_handle = dir;
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_dir_readdir(kelp_fs_mount_t* mount, void* dir_handle, kelp_fs_dirent_t* entry) {
+    struct lfs* lfs = mount->context;
+    struct lfs_dir dir;
+    memcpy(&dir, dir_handle, sizeof(dir));
+
+    struct lfs_info info;
+    int error = lfs_dir_read(lfs, &dir, &info);
+    if (error <= 0) {
+        // error=0 means EOF, error<0 is actual error
+        return (error < 0) ? error : 1; // return 1 for EOF
+    }
+
+    entry->type = (info.type == LFS_TYPE_REG) ? FS_DT_FILE : FS_DT_DIR;
+    entry->size = info.size;
+    entry->modified = 0;
+    strncpy(entry->name, info.name, FILE_SERVICE_MAX_NAME);
+    entry->name[FILE_SERVICE_MAX_NAME] = '\0';
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_dir_closedir(kelp_fs_mount_t* mount, void* dir_handle) {
+    struct lfs* lfs = mount->context;
+    int error = lfs_dir_close(lfs, dir_handle);
+    if (error < 0) {
+        return error;
+    }
+    free(dir_handle);
+    return KELP_OK;
+}
+
+kelp_error_t kelp_lfsv2_dir_rewinddir(kelp_fs_mount_t* mount, void* dir_handle) {
+    // LittleFS doesn't support rewinddir; just close and reopen at root
+    (void)mount;
+    (void)dir_handle;
+    return LFS_ERR_INVAL; // not supported
 }
 
 kelp_error_t kelp_lfsv2_stat(kelp_fs_mount_t* mount, const char* path,
@@ -376,55 +506,32 @@ kelp_error_t kelp_lfsv2_stat(kelp_fs_mount_t* mount, const char* path,
     return KELP_OK;
 }
 
-// TODO: this only works with files, we will either need to get both to work together or have two functions
-kelp_error_t kelp_lfsv2_seek(kelp_fs_mount_t* mount, void* handle, int32_t offset, kelp_fs_seek_t whence) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_file_seek(lfs, handle, offset, whence);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
-        return error;
-    }
-
-    return KELP_OK;
-}
-
-kelp_error_t kelp_lfsv2_tell(kelp_fs_mount_t* mount, void* handle, uint32_t* pos) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_file_tell(lfs, handle);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
-        return error;
-    }
-
-    *pos = (uint32_t)error;
-    return KELP_OK;
-}
-
-kelp_error_t kelp_lfsv2_size(kelp_fs_mount_t* mount, void* handle, uint32_t* size) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_file_size(lfs, handle);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
-        return error;
-    }
-
-    *size = (uint32_t)error;
-    return KELP_OK;
-}
-
 const struct kelp_fs_backend_plugin kelp_lfsv2_plugin = {
     .name = "lfsv2",
     .probe = kelp_lfsv2_probe,
     .mount = kelp_lfsv2_mount,
     .unmount = kelp_lfsv2_unmount,
-    .open = kelp_lfsv2_open,
-    .close = kelp_lfsv2_close,
-    .read = kelp_lfsv2_read,
-    .write = kelp_lfsv2_write,
     .stat = kelp_lfsv2_stat,
-    .seek = kelp_lfsv2_seek,
-    .tell = kelp_lfsv2_tell,
-    .size = kelp_lfsv2_size,
+
+    /* File ops */
+    .file_open = kelp_lfsv2_file_open,
+    .file_close = kelp_lfsv2_file_close,
+    .file_read = kelp_lfsv2_file_read,
+    .file_write = kelp_lfsv2_file_write,
+    .file_seek = kelp_lfsv2_file_seek,
+    .file_tell = kelp_lfsv2_file_tell,
+    .file_size = kelp_lfsv2_file_size,
+    .file_flush = kelp_lfsv2_file_flush,
+    .file_truncate = kelp_lfsv2_file_truncate,
+    .file_rename = kelp_lfsv2_file_rename,
+
+    /* Directory ops */
+    .dir_mkdir = kelp_lfsv2_dir_mkdir,
+    .dir_opendir = kelp_lfsv2_dir_opendir,
+    .dir_readdir = kelp_lfsv2_dir_readdir,
+    .dir_closedir = kelp_lfsv2_dir_closedir,
+    .dir_rewinddir = kelp_lfsv2_dir_rewinddir,
+
     .max_name_len = LFS_NAME_MAX,
     .flags = 0,
 };
