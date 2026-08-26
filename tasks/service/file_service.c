@@ -1263,26 +1263,6 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                     }
 
                     switch (reason) {
-                    case REASON_FILE_STAT:
-                        error = kelp_fs_handle_stat_request(channel_id, data, size);
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    case REASON_FILE_FILE_OPEN:
-                        error = kelp_fs_handle_file_open_request(channel_id, data, size);
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    case REASON_FILE_DIR_OPENDIR:
-                        error = kelp_fs_handle_dir_opendir_request(channel_id, data, size);
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    case REASON_FILE_DIR_MKDIR:
-                        error = kelp_fs_handle_dir_mkdir_request(channel_id, data, size);
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    case REASON_FILE_FILE_RENAME:
-                        // rename needs two strings; parse first, then read second
-                        // For simplicity, handle rename in a separate path below
-                        break;
                     default: break;
                     }
                 } break;
@@ -1385,9 +1365,24 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                     }
 
                     switch (reason) {
+                    case REASON_FILE_STAT:
+                        error = kelp_fs_handle_stat_request(channel_id, data, size);
+                        com_send_error_blocking(channel_id, error);
+                        break;
+                    case REASON_FILE_FILE_OPEN:
+                        error = kelp_fs_handle_file_open_request(channel_id, data, size);
+                        com_send_error_blocking(channel_id, error);
+                        break;
+                    case REASON_FILE_DIR_OPENDIR:
+                        error = kelp_fs_handle_dir_opendir_request(channel_id, data, size);
+                        com_send_error_blocking(channel_id, error);
+                        break;
+                    case REASON_FILE_DIR_MKDIR:
+                        error = kelp_fs_handle_dir_mkdir_request(channel_id, data, size);
+                        com_send_error_blocking(channel_id, error);
+                        break;
                     case REASON_FILE_FILE_RENAME:
                         // rename: first string is old path, second is new path
-                        // We need to read the second string from the channel
                         {
                             char new_path[FILE_SERVICE_MAX_NAME];
                             uint32_t new_size;
