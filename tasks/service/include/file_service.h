@@ -31,6 +31,7 @@
 #define REASON_FILE_STAT 23597
 #define REASON_FILE_SEEK 9034
 #define REASON_FILE_TELL 34908
+#define REASON_FILE_SIZE 11304
 
 // ------- Mount Struct ------+
 typedef struct {
@@ -133,10 +134,10 @@ typedef kelp_error_t (*kelp_fs_truncate_fn)(kelp_fs_mount_t* mount, void* handle
 struct kelp_fs_backend_plugin {
     const char* name;             // "littlefs", "fatfs", "myfs"
 
-    /* Required ops */
     kelp_fs_probe_fn     probe;
     kelp_fs_mount_fn     mount;
     kelp_fs_unmount_fn   unmount;
+    kelp_fs_stat_fn      stat;
     kelp_fs_open_fn      open;
     kelp_fs_close_fn     close;
     kelp_fs_read_fn      read;
@@ -144,16 +145,13 @@ struct kelp_fs_backend_plugin {
     kelp_fs_seek_fn      seek;
     kelp_fs_tell_fn      tell;
     kelp_fs_size_fn      size;
-    kelp_fs_stat_fn      stat;
+    kelp_fs_sync_fn      flush;
     kelp_fs_rename_fn    rename;
-
-    /* Optional ops — set to NULL if not supported */
     kelp_fs_mkdir_fn     mkdir;
     kelp_fs_opendir_fn   opendir;
     kelp_fs_readdir_fn   readdir;
     kelp_fs_closedir_fn  closedir;
     kelp_fs_rewinddir_fn rewinddir;
-    kelp_fs_sync_fn      flush;
     kelp_fs_truncate_fn  truncate;
 
     /* Per-mount context size (allocated by FS manager) */
@@ -178,6 +176,7 @@ typedef struct {
     kelp_fs_mount_t* mount;
     bool active;
     uint32_t owner_pid;
+    kelp_fs_dtype_t type;
 } kelp_fs_handle_t;
 
 // ------ Manager Struct -----+
@@ -216,6 +215,8 @@ kelp_error_t kelp_fs_write(uint32_t handle, const uint8_t* buffer, uint32_t leng
 kelp_error_t kelp_fs_seek(uint32_t handle, int32_t offset, kelp_fs_seek_t whence);
 
 kelp_error_t kelp_fs_tell(uint32_t handle, uint32_t* pos);
+
+kelp_error_t kelp_fs_size(uint32_t handle, uint32_t* size);
 
 // file service task
 void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args);

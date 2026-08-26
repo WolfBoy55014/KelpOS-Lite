@@ -436,6 +436,11 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     printf("kelp_fs_tell returned with code %ld\n", error);
     printf("cursor is at %lu\n", position);
 
+    uint32_t size_bytes;
+    error = kelp_fs_size(handle, &size_bytes);
+    printf("kelp_fs_size returned with code %ld\n", error);
+    printf("size is %lu\n", size_bytes);
+
     error = kelp_fs_close(handle);
     printf("kelp_fs_close returned with code %ld\n", error);
 
