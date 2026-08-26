@@ -389,7 +389,7 @@ kelp_error_t kelp_lfsv2_file_flush(kelp_fs_mount_t* mount, void* handle) {
 
 kelp_error_t kelp_lfsv2_file_truncate(kelp_fs_mount_t* mount, void* handle, uint32_t size) {
     struct lfs* lfs = mount->context;
-    int error = lfs_file_trunc(lfs, handle, size);
+    int error = lfs_file_truncate(lfs, handle, size);
     if (error < 0) {
         printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
         return error;

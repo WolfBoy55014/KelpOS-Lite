@@ -490,11 +490,16 @@ kelp_error_t kelp_fs_dir_readdir(uint32_t dir_handle, kelp_fs_dirent_t* entry) {
     KELP_RETURN_ON_ERROR(service_error);
 
     uint16_t reason;
-    error = com_get_char_array_blocking(channel_id, (char*)entry, sizeof(kelp_fs_dirent_t), &reason);
+    uint32_t bytes_read;
+    error = com_get_char_array_blocking(channel_id, (char*)entry, sizeof(kelp_fs_dirent_t), &bytes_read, &reason);
     KELP_RETURN_ON_ERROR(error);
 
     if (reason != REASON_FILE_DIR_READDIR) {
         return KELP_WRONG_REASON;
+    }
+    
+    if (bytes_read != sizeof(kelp_fs_dirent_t)) {
+        return KELP_PROTOCOL;
     }
 
     return KELP_OK;
@@ -725,7 +730,7 @@ static kelp_error_t kelp_fs_handle_file_close_request(uint16_t channel_id, uint3
 
     // Validate handle type
     if (handle->type != FS_HANDLE_FILE) {
-        return KELP_INVAL;  // Can't close a directory handle with file_close
+        return KELP_WRONG_TYPE;  // Can't close a directory handle with file_close
     }
 
     kelp_fs_mount_t* mount = handle->mount;
@@ -754,7 +759,7 @@ static kelp_error_t kelp_fs_handle_file_read_request(uint16_t channel_id, uint64
 
     // Validate handle type
     if (handle->type != FS_HANDLE_FILE) {
-        return KELP_INVAL;  // Can't read from a directory handle
+        return KELP_WRONG_TYPE;  // Can't read from a directory handle
     }
 
     kelp_fs_mount_t* mount = handle->mount;
@@ -795,7 +800,7 @@ static kelp_error_t kelp_fs_handle_file_write_request(uint16_t channel_id, uint6
 
     // Validate handle type
     if (handle->type != FS_HANDLE_FILE) {
-        return KELP_INVAL;  // Can't write to a directory handle
+        return KELP_WRONG_TYPE;  // Can't write to a directory handle
     }
 
     kelp_fs_mount_t* mount = handle->mount;
@@ -857,7 +862,7 @@ static kelp_error_t kelp_fs_handle_file_seek_request(uint16_t channel_id, uint8_
 
     // Validate handle type
     if (handle->type != FS_HANDLE_FILE) {
-        return KELP_INVAL;  // Can't seek on a directory handle
+        return KELP_WRONG_TYPE;  // Can't seek on a directory handle
     }
 
     kelp_fs_mount_t* mount = handle->mount;
@@ -882,7 +887,7 @@ static kelp_error_t kelp_fs_handle_file_tell_request(uint16_t channel_id, uint32
 
     // Validate handle type
     if (handle->type != FS_HANDLE_FILE) {
-        return KELP_INVAL;  // Can't tell on a directory handle
+        return KELP_WRONG_TYPE;  // Can't tell on a directory handle
     }
 
     kelp_fs_mount_t* mount = handle->mount;
@@ -911,7 +916,7 @@ static kelp_error_t kelp_fs_handle_file_size_request(uint16_t channel_id, uint32
 
     // Validate handle type
     if (handle->type != FS_HANDLE_FILE) {
-        return KELP_INVAL;  // Can't get size of a directory handle
+        return KELP_WRONG_TYPE;  // Can't get size of a directory handle
     }
 
     kelp_fs_mount_t* mount = handle->mount;
@@ -940,7 +945,7 @@ static kelp_error_t kelp_fs_handle_file_flush_request(uint16_t channel_id, uint3
 
     // Validate handle type
     if (handle->type != FS_HANDLE_FILE) {
-        return KELP_INVAL;  // Can't flush a directory handle
+        return KELP_WRONG_TYPE;  // Can't flush a directory handle
     }
 
     kelp_fs_mount_t* mount = handle->mount;
@@ -965,7 +970,7 @@ static kelp_error_t kelp_fs_handle_file_truncate_request(uint16_t channel_id, ui
 
     // Validate handle type
     if (handle->type != FS_HANDLE_FILE) {
-        return KELP_INVAL;  // Can't truncate a directory handle
+        return KELP_WRONG_TYPE;  // Can't truncate a directory handle
     }
 
     kelp_fs_mount_t* mount = handle->mount;
@@ -998,7 +1003,7 @@ static kelp_error_t kelp_fs_handle_file_rename_request(uint16_t channel_id, char
 
     // Both paths must be on the same mount
     if (mount_id != new_mount_id) {
-        return KELP_INVAL;
+        return KELP_WRONG_TYPE;
     }
 
     kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[mount_id];
@@ -1032,7 +1037,7 @@ static kelp_error_t kelp_fs_handle_dir_opendir_request(uint16_t channel_id, char
 
     // Check if plugin supports opendir
     if (plugin->dir_opendir == NULL) {
-        return KELP_INVAL;
+        return KELP_WRONG_TYPE;
     }
 
     int64_t handle_id = get_free_handle();
@@ -1073,14 +1078,14 @@ static kelp_error_t kelp_fs_handle_dir_readdir_request(uint16_t channel_id, uint
 
     // Validate handle type
     if (handle->type != FS_HANDLE_DIR) {
-        return KELP_INVAL;  // Can't readdir on a file handle
+        return KELP_WRONG_TYPE;  // Can't readdir on a file handle
     }
 
     kelp_fs_mount_t* mount = handle->mount;
     const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
 
     if (plugin->dir_readdir == NULL) {
-        return KELP_INVAL;
+        return KELP_WRONG_TYPE;
     }
 
     kelp_fs_dirent_t entry;
@@ -1108,14 +1113,14 @@ static kelp_error_t kelp_fs_handle_dir_closedir_request(uint16_t channel_id, uin
 
     // Validate handle type
     if (handle->type != FS_HANDLE_DIR) {
-        return KELP_INVAL;  // Can't closedir on a file handle
+        return KELP_WRONG_TYPE;  // Can't closedir on a file handle
     }
 
     kelp_fs_mount_t* mount = handle->mount;
     const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
 
     if (plugin->dir_closedir == NULL) {
-        return KELP_INVAL;
+        return KELP_WRONG_TYPE;
     }
 
     kelp_error_t error = plugin->dir_closedir(mount, handle->handle);
@@ -1139,14 +1144,14 @@ static kelp_error_t kelp_fs_handle_dir_rewinddir_request(uint16_t channel_id, ui
 
     // Validate handle type
     if (handle->type != FS_HANDLE_DIR) {
-        return KELP_INVAL;  // Can't rewinddir on a file handle
+        return KELP_WRONG_TYPE;  // Can't rewinddir on a file handle
     }
 
     kelp_fs_mount_t* mount = handle->mount;
     const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
 
     if (plugin->dir_rewinddir == NULL) {
-        return KELP_INVAL;
+        return KELP_WRONG_TYPE;
     }
 
     kelp_error_t error = plugin->dir_rewinddir(mount, handle->handle);
@@ -1176,7 +1181,7 @@ static kelp_error_t kelp_fs_handle_dir_mkdir_request(uint16_t channel_id, char* 
     const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
 
     if (plugin->dir_mkdir == NULL) {
-        return KELP_INVAL;
+        return KELP_WRONG_TYPE;
     }
 
     kelp_error_t error = plugin->dir_mkdir(mount, device_path);

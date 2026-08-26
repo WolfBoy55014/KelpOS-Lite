@@ -411,37 +411,37 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
 
     uint32_t handle;
     uint32_t boot_count;
-    kelp_error_t error = kelp_fs_open("/0/boot_count", FS_O_CREAT | FS_O_RDWR, &handle);
+    kelp_error_t error = kelp_fs_file_open("/0/boot_count", FS_O_CREAT | FS_O_RDWR, &handle);
     printf("kelp_fs_open returned with code %ld\n", error);
 
     uint32_t bytes_read;
-    error = kelp_fs_read(handle, (uint8_t*)&boot_count, 4, &bytes_read);
+    error = kelp_fs_file_read(handle, (uint8_t*)&boot_count, 4, &bytes_read);
     printf("kelp_fs_read returned with code %ld\n", error);
     printf("boot count is %lu\n", boot_count);
 
     boot_count++;
 
-    error = kelp_fs_seek(handle, 0, SEEK_SET);
+    error = kelp_fs_file_seek(handle, 0, SEEK_SET);
     printf("kelp_fs_seek returned with code %ld\n", error);
 
     uint32_t bytes_written;
-    error = kelp_fs_write(handle, (uint8_t*)&boot_count, 4, &bytes_written);
+    error = kelp_fs_file_write(handle, (uint8_t*)&boot_count, 4, &bytes_written);
     printf("kelp_fs_write returned with code %ld\n", error);
 
-    error = kelp_fs_seek(handle, 4, SEEK_SET);
+    error = kelp_fs_file_seek(handle, 4, SEEK_SET);
     printf("kelp_fs_seek returned with code %ld\n", error);
 
     uint32_t position;
-    error = kelp_fs_tell(handle, &position);
+    error = kelp_fs_file_tell(handle, &position);
     printf("kelp_fs_tell returned with code %ld\n", error);
     printf("cursor is at %lu\n", position);
 
     uint32_t size_bytes;
-    error = kelp_fs_size(handle, &size_bytes);
+    error = kelp_fs_file_size(handle, &size_bytes);
     printf("kelp_fs_size returned with code %ld\n", error);
     printf("size is %lu\n", size_bytes);
 
-    error = kelp_fs_close(handle);
+    error = kelp_fs_file_close(handle);
     printf("kelp_fs_close returned with code %ld\n", error);
 
     while (1) {
