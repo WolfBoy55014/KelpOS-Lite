@@ -497,7 +497,7 @@ kelp_error_t kelp_fs_dir_readdir(uint32_t dir_handle, kelp_fs_dirent_t* entry) {
     if (reason != REASON_FILE_DIR_READDIR) {
         return KELP_WRONG_REASON;
     }
-    
+
     if (bytes_read != sizeof(kelp_fs_dirent_t)) {
         return KELP_PROTOCOL;
     }
@@ -957,7 +957,16 @@ static kelp_error_t kelp_fs_handle_file_flush_request(uint16_t channel_id, uint3
     return KELP_OK;
 }
 
-static kelp_error_t kelp_fs_handle_file_truncate_request(uint16_t channel_id, uint32_t handle_id, uint32_t size) {
+static kelp_error_t kelp_fs_handle_file_truncate_request(uint16_t channel_id, uint32_t handle_id) {
+    uint32_t size;
+    uint16_t reason;
+    kelp_error_t error = com_get_uint32_blocking(channel_id, &size, &reason);
+    KELP_RETURN_ON_ERROR(error);
+
+    if (reason != REASON_FILE_FILE_TRUNCATE) {
+        return KELP_WRONG_REASON;
+    }
+
     if (!is_valid_handle(handle_id)) {
         return KELP_NO_EXIST;
     }
@@ -976,13 +985,31 @@ static kelp_error_t kelp_fs_handle_file_truncate_request(uint16_t channel_id, ui
     kelp_fs_mount_t* mount = handle->mount;
     const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
 
-    kelp_error_t error = plugin->file_truncate(mount, handle->handle, size);
+    error = plugin->file_truncate(mount, handle->handle, size);
     KELP_RETURN_ON_ERROR(error);
 
     return KELP_OK;
 }
 
-static kelp_error_t kelp_fs_handle_file_rename_request(uint16_t channel_id, char* old_path, char* new_path) {
+static kelp_error_t kelp_fs_handle_file_rename_request(uint16_t channel_id, char* old_path, uint32_t old_size) {
+    if (old_size > FILE_SERVICE_MAX_NAME) {
+        return KELP_TOO_BIG;
+    }
+
+    char new_path[FILE_SERVICE_MAX_NAME];
+    uint32_t new_size;
+    uint16_t reason;
+    kelp_error_t error = com_get_char_array(channel_id, new_path, FILE_SERVICE_MAX_NAME, &new_size, &reason);
+    KELP_RETURN_ON_ERROR(error);
+    if (reason != REASON_FILE_FILE_RENAME) {
+        return KELP_WRONG_REASON;
+    }
+
+    // TODO: How is this supposed to be possible if FILE_SERVICE_MAX_NAME is max size above?
+    if (new_size > FILE_SERVICE_MAX_NAME) {
+        return KELP_TOO_BIG;
+    }
+
     uint8_t mount_id;
     const char* old_device_path = extract_mount_path(old_path, &mount_id);
     if (old_device_path == NULL) {
@@ -1009,7 +1036,7 @@ static kelp_error_t kelp_fs_handle_file_rename_request(uint16_t channel_id, char
     kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[mount_id];
     const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
 
-    kelp_error_t error = plugin->file_rename(mount, old_device_path, new_device_path);
+    error = plugin->file_rename(mount, old_device_path, new_device_path);
     KELP_RETURN_ON_ERROR(error);
 
     return KELP_OK;
@@ -1263,6 +1290,10 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                     }
 
                     switch (reason) {
+                    case REASON_FILE_FILE_SEEK:
+                        error = kelp_fs_handle_file_seek_request(channel_id, (uint8_t*)data, size);
+                        com_send_error_blocking(channel_id, error);
+                        break;
                     default: break;
                     }
                 } break;
@@ -1310,7 +1341,8 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                         com_send_error_blocking(channel_id, error);
                         break;
                     case REASON_FILE_FILE_TRUNCATE:
-                        // truncate needs size as second param; handled below
+                        error = kelp_fs_handle_file_truncate_request(channel_id, data);
+                        com_send_error_blocking(channel_id, error);
                         break;
                     case REASON_FILE_DIR_CLOSEDIR:
                         error = kelp_fs_handle_dir_closedir_request(channel_id, data);
@@ -1383,20 +1415,8 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                         break;
                     case REASON_FILE_FILE_RENAME:
                         // rename: first string is old path, second is new path
-                        {
-                            char new_path[FILE_SERVICE_MAX_NAME];
-                            uint32_t new_size;
-                            uint16_t new_reason;
-                            kelp_error_t err = com_get_char_array(channel_id, new_path, FILE_SERVICE_MAX_NAME, &new_size, &new_reason);
-                            if (err != KELP_OK) {
-                                break;
-                            }
-                            if (new_reason != REASON_FILE_FILE_RENAME) {
-                                break;
-                            }
-                            error = kelp_fs_handle_file_rename_request(channel_id, data, new_path);
-                            com_send_error_blocking(channel_id, error);
-                        }
+                        error = kelp_fs_handle_file_rename_request(channel_id, data, size);
+                        com_send_error_blocking(channel_id, error);
                         break;
                     default: break;
                     }
