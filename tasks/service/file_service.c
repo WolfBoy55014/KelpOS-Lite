@@ -588,7 +588,7 @@ kelp_error_t kelp_fs_dir_seek(uint32_t handle, int32_t offset) {
     return KELP_OK;
 }
 
-kelp_error_t kelp_fs_dir_tell(uint32_t handle, uint32_t* pos) {
+kelp_error_t kelp_fs_dir_tell(uint32_t handle, int32_t* pos) {
     uint16_t channel_id = 0;
     kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
     KELP_RETURN_ON_ERROR(error);
@@ -602,7 +602,7 @@ kelp_error_t kelp_fs_dir_tell(uint32_t handle, uint32_t* pos) {
     KELP_RETURN_ON_ERROR(service_error);
 
     uint16_t reason;
-    error = com_get_uint32_blocking(channel_id, pos, &reason);
+    error = com_get_int32_blocking(channel_id, pos, &reason);
     KELP_RETURN_ON_ERROR(error);
 
     if (reason != REASON_FILE_DIR_TELL) {
@@ -732,11 +732,6 @@ static kelp_error_t kelp_fs_handle_rename_request(uint16_t channel_id, char* old
     KELP_RETURN_ON_ERROR(error);
     if (reason != REASON_FILE_RENAME) {
         return KELP_WRONG_REASON;
-    }
-
-    // TODO: How is this supposed to be possible if FILE_SERVICE_MAX_NAME is max size above?
-    if (new_size > FILE_SERVICE_MAX_NAME) {
-        return KELP_TOO_BIG;
     }
 
     uint8_t mount_id;
@@ -1362,7 +1357,7 @@ static kelp_error_t kelp_fs_handle_dir_tell_request(uint16_t channel_id, uint32_
     kelp_error_t error = plugin->dir_tell(mount, handle->handle, &position);
     KELP_RETURN_ON_ERROR(error);
 
-    error = com_send_uint32_blocking(channel_id, position, REASON_FILE_DIR_TELL);
+    error = com_send_int32_blocking(channel_id, position, REASON_FILE_DIR_TELL);
     KELP_RETURN_ON_ERROR(error);
 
     return KELP_OK;

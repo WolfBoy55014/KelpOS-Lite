@@ -18,9 +18,6 @@
 
 #define FILE_SERVICE_MAX_NAME 256
 
-#define REASON_FILE_ERROR 45674
-#define REASON_FILE_OK 45674
-
 /* Path-based operations (no handle) */
 #define REASON_FILE_CONNECT 34678
 #define REASON_FILE_REMOVE 37590
@@ -280,7 +277,7 @@ kelp_error_t kelp_fs_dir_rewind(uint32_t handle);
 
 kelp_error_t kelp_fs_dir_seek(uint32_t handle, int32_t offset);
 
-kelp_error_t kelp_fs_dir_tell(uint32_t handle, uint32_t* pos);
+kelp_error_t kelp_fs_dir_tell(uint32_t handle, int32_t* pos);
 
 // file service task
 void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args);
