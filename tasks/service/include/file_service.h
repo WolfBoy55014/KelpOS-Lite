@@ -27,6 +27,8 @@
 #define REASON_FILE_MOUNT 25678
 #define REASON_FILE_UNMOUNT 7890
 #define REASON_FILE_STAT 23597
+#define REASON_FILE_RENAME 10010
+#define REASON_FILE_DELETE 48956
 
 /* File handle operations */
 #define REASON_FILE_FILE_OPEN 10001
@@ -38,14 +40,15 @@
 #define REASON_FILE_FILE_SIZE 10007
 #define REASON_FILE_FILE_FLUSH 10008
 #define REASON_FILE_FILE_TRUNCATE 10009
-#define REASON_FILE_FILE_RENAME 10010
 
 /* Directory handle operations */
-#define REASON_FILE_DIR_OPENDIR 10101
-#define REASON_FILE_DIR_READDIR 10102
-#define REASON_FILE_DIR_CLOSEDIR 10103
-#define REASON_FILE_DIR_REWINDDIR 10104
 #define REASON_FILE_DIR_MKDIR 10105
+#define REASON_FILE_DIR_OPEN 10101
+#define REASON_FILE_DIR_CLOSE 10102
+#define REASON_FILE_DIR_READ 10103
+#define REASON_FILE_DIR_REWIND 10104
+#define REASON_FILE_DIR_SEEK 8572
+#define REASON_FILE_DIR_TELL 23859
 
 /* Handle type — distinguishes file vs directory handles */
 typedef enum {
@@ -139,13 +142,15 @@ typedef kelp_error_t (*kelp_fs_file_truncate_fn)(kelp_fs_mount_t* mount, void* h
 typedef kelp_error_t (*kelp_fs_dir_mkdir_fn)(kelp_fs_mount_t* mount, const char* path);
 
 /* Open/close directory */
-typedef kelp_error_t (*kelp_fs_dir_opendir_fn)(kelp_fs_mount_t* mount, const char* path,
+typedef kelp_error_t (*kelp_fs_dir_open_fn)(kelp_fs_mount_t* mount, const char* path,
                                        void** dir_handle);
-typedef kelp_error_t (*kelp_fs_dir_closedir_fn)(kelp_fs_mount_t* mount, void* dir_handle);
+typedef kelp_error_t (*kelp_fs_dir_close_fn)(kelp_fs_mount_t* mount, void* dir_handle);
 
 /* Read/rewind directory */
-typedef kelp_error_t (*kelp_fs_dir_readdir_fn)(kelp_fs_mount_t* mount, void* dir_handle, kelp_fs_dirent_t* entry);
-typedef kelp_error_t (*kelp_fs_dir_rewinddir_fn)(kelp_fs_mount_t* mount, void* dir_handle);
+typedef kelp_error_t (*kelp_fs_dir_read_fn)(kelp_fs_mount_t* mount, void* dir_handle, kelp_fs_dirent_t* entry);
+typedef kelp_error_t (*kelp_fs_dir_rewind_fn)(kelp_fs_mount_t* mount, void* dir_handle);
+typedef kelp_error_t (*kelp_fs_dir_seek_fn)(kelp_fs_mount_t* mount, void* dir_handle, int32_t offset);
+typedef kelp_error_t (*kelp_fs_dir_tell_fn)(kelp_fs_mount_t* mount, void* dir_handle, int32_t* pos);
 
 /* === Path-based operations (no handle) === */
 
@@ -154,17 +159,22 @@ typedef kelp_error_t (*kelp_fs_stat_fn)(kelp_fs_mount_t* mount, const char* path
                                   kelp_fs_dirent_t* out);
 
 /* Rename: rename or move a file or directory */
-typedef kelp_error_t (*kelp_fs_file_rename_fn)(kelp_fs_mount_t* mount, const char* old_path, const char* new_path);
+typedef kelp_error_t (*kelp_fs_rename_fn)(kelp_fs_mount_t* mount, const char* old_path, const char* new_path);
+
+/* Remove: remove/delete a file or directory */
+typedef kelp_error_t (*kelp_fs_remove_fn)(kelp_fs_mount_t* mount, const char *path);
 
 /* Plugin descriptor */
 struct kelp_fs_backend_plugin {
-    const char* name;             // "littlefs", "fatfs", "myfs"
+    const char* name;
 
     /* Required ops */
     kelp_fs_probe_fn     probe;
     kelp_fs_mount_fn     mount;
     kelp_fs_unmount_fn   unmount;
     kelp_fs_stat_fn      stat;
+    kelp_fs_rename_fn    rename;
+    kelp_fs_remove_fn    remove;
 
     /* File ops */
     kelp_fs_file_open_fn      file_open;
@@ -176,14 +186,15 @@ struct kelp_fs_backend_plugin {
     kelp_fs_file_size_fn      file_size;
     kelp_fs_file_flush_fn     file_flush;
     kelp_fs_file_truncate_fn  file_truncate;
-    kelp_fs_file_rename_fn    file_rename;
 
     /* Directory ops */
-    kelp_fs_dir_mkdir_fn     dir_mkdir;
-    kelp_fs_dir_opendir_fn   dir_opendir;
-    kelp_fs_dir_readdir_fn   dir_readdir;
-    kelp_fs_dir_closedir_fn  dir_closedir;
-    kelp_fs_dir_rewinddir_fn dir_rewinddir;
+    kelp_fs_dir_mkdir_fn      dir_mkdir;
+    kelp_fs_dir_open_fn       dir_open;
+    kelp_fs_dir_close_fn      dir_close;
+    kelp_fs_dir_read_fn       dir_read;
+    kelp_fs_dir_rewind_fn     dir_rewind;
+    kelp_fs_dir_seek_fn       dir_seek;
+    kelp_fs_dir_tell_fn       dir_tell;
 
     /* Per-mount context size (allocated by FS manager) */
     uint32_t mount_ctx_size;
@@ -254,18 +265,22 @@ kelp_error_t kelp_fs_file_flush(uint32_t handle);
 
 kelp_error_t kelp_fs_file_truncate(uint32_t handle, uint32_t size);
 
-kelp_error_t kelp_fs_file_rename(const char* old_path, const char* new_path);
+kelp_error_t kelp_fs_rename(const char* old_path, const char* new_path);
 
 /* Directory operations */
-kelp_error_t kelp_fs_dir_opendir(const char* path, uint32_t* dir_handle);
-
-kelp_error_t kelp_fs_dir_readdir(uint32_t dir_handle, kelp_fs_dirent_t* entry);
-
-kelp_error_t kelp_fs_dir_closedir(uint32_t dir_handle);
-
-kelp_error_t kelp_fs_dir_rewinddir(uint32_t dir_handle);
-
 kelp_error_t kelp_fs_dir_mkdir(const char* path);
+
+kelp_error_t kelp_fs_dir_open(const char* path, uint32_t* handle);
+
+kelp_error_t kelp_fs_dir_close(uint32_t handle);
+
+kelp_error_t kelp_fs_dir_read(uint32_t handle, kelp_fs_dirent_t* entry);
+
+kelp_error_t kelp_fs_dir_rewind(uint32_t handle);
+
+kelp_error_t kelp_fs_dir_seek(uint32_t handle, int32_t offset);
+
+kelp_error_t kelp_fs_dir_tell(uint32_t handle, uint32_t* pos);
 
 // file service task
 void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args);

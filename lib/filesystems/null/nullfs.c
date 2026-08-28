@@ -113,6 +113,8 @@ const struct kelp_fs_backend_plugin kelp_nullfs_plugin = {
     .mount          = kelp_nullfs_mount,
     .unmount        = kelp_nullfs_unmount,
     .stat           = NULL,
+    .rename         = NULL,
+    .remove         = NULL,
 
     /* File ops */
     .file_open      = NULL,
@@ -124,14 +126,13 @@ const struct kelp_fs_backend_plugin kelp_nullfs_plugin = {
     .file_size      = NULL,
     .file_flush     = NULL,
     .file_truncate  = NULL,
-    .file_rename    = NULL,
 
     /* Directory ops */
     .dir_mkdir      = NULL,
-    .dir_opendir    = NULL,
-    .dir_readdir    = NULL,
-    .dir_closedir   = NULL,
-    .dir_rewinddir  = NULL,
+    .dir_open    = NULL,
+    .dir_read    = NULL,
+    .dir_close   = NULL,
+    .dir_rewind  = NULL,
 
     .max_name_len   = 255,
     .flags          = 0,

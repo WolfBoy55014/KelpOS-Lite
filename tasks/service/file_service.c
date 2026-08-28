@@ -138,7 +138,7 @@ static const char* extract_mount_path(const char* virtual_path, uint8_t* mount_i
         return NULL;  // Invalid format: must be /M/...
     }
 
-    return p + 1;  // Skip the trailing '/'
+    return p;  // Keep the trailing '/'
 }
 
 // non-blocking sibling to mount
@@ -208,6 +208,43 @@ kelp_error_t kelp_fs_stat(const char* path, kelp_fs_dirent_t* out) {
     uint16_t reason;
     error = com_get_char_array_blocking(channel_id, (char*)out, sizeof(kelp_fs_dirent_t), &size, &reason);
     KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_fs_rename(const char* old_path, const char* new_path) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    // send old path
+    error = com_send_char_array_blocking(channel_id, old_path, strlen(old_path) + 1, REASON_FILE_RENAME);
+    KELP_RETURN_ON_ERROR(error);
+
+    // send new path
+    error = com_send_char_array_blocking(channel_id, new_path, strlen(new_path) + 1, REASON_FILE_RENAME);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_fs_remove(const char* path) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_char_array_blocking(channel_id, path, strlen(path) + 1, REASON_FILE_DELETE);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
 
     return KELP_OK;
 }
@@ -427,115 +464,9 @@ kelp_error_t kelp_fs_file_truncate(uint32_t handle, uint32_t size) {
     return KELP_OK;
 }
 
-kelp_error_t kelp_fs_file_rename(const char* old_path, const char* new_path) {
-    uint16_t channel_id = 0;
-    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
-    KELP_RETURN_ON_ERROR(error);
-
-    // send old path
-    error = com_send_char_array_blocking(channel_id, old_path, strlen(old_path) + 1, REASON_FILE_FILE_RENAME);
-    KELP_RETURN_ON_ERROR(error);
-
-    // send new path
-    error = com_send_char_array_blocking(channel_id, new_path, strlen(new_path) + 1, REASON_FILE_FILE_RENAME);
-    KELP_RETURN_ON_ERROR(error);
-
-    kelp_error_t service_error;
-    error = com_check_for_error_blocking(channel_id, &service_error);
-    KELP_RETURN_ON_ERROR(error);
-    KELP_RETURN_ON_ERROR(service_error);
-
-    return KELP_OK;
-}
-
 // ============================================================================
 // Directory operation client APIs
 // ============================================================================
-
-kelp_error_t kelp_fs_dir_opendir(const char* path, uint32_t* dir_handle) {
-    uint16_t channel_id = 0;
-    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
-    KELP_RETURN_ON_ERROR(error);
-
-    error = com_send_char_array_blocking(channel_id, path, strlen(path) + 1, REASON_FILE_DIR_OPENDIR);
-    KELP_RETURN_ON_ERROR(error);
-
-    kelp_error_t service_error;
-    error = com_check_for_error_blocking(channel_id, &service_error);
-    KELP_RETURN_ON_ERROR(error);
-    KELP_RETURN_ON_ERROR(service_error);
-
-    uint16_t reason;
-    error = com_get_uint32_blocking(channel_id, dir_handle, &reason);
-    KELP_RETURN_ON_ERROR(error);
-
-    if (reason != REASON_FILE_DIR_OPENDIR) {
-        return KELP_WRONG_REASON;
-    }
-
-    return KELP_OK;
-}
-
-kelp_error_t kelp_fs_dir_readdir(uint32_t dir_handle, kelp_fs_dirent_t* entry) {
-    uint16_t channel_id = 0;
-    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
-    KELP_RETURN_ON_ERROR(error);
-
-    error = com_send_uint32_blocking(channel_id, dir_handle, REASON_FILE_DIR_READDIR);
-    KELP_RETURN_ON_ERROR(error);
-
-    kelp_error_t service_error;
-    error = com_check_for_error_blocking(channel_id, &service_error);
-    KELP_RETURN_ON_ERROR(error);
-    KELP_RETURN_ON_ERROR(service_error);
-
-    uint16_t reason;
-    uint32_t bytes_read;
-    error = com_get_char_array_blocking(channel_id, (char*)entry, sizeof(kelp_fs_dirent_t), &bytes_read, &reason);
-    KELP_RETURN_ON_ERROR(error);
-
-    if (reason != REASON_FILE_DIR_READDIR) {
-        return KELP_WRONG_REASON;
-    }
-
-    if (bytes_read != sizeof(kelp_fs_dirent_t)) {
-        return KELP_PROTOCOL;
-    }
-
-    return KELP_OK;
-}
-
-kelp_error_t kelp_fs_dir_closedir(uint32_t dir_handle) {
-    uint16_t channel_id = 0;
-    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
-    KELP_RETURN_ON_ERROR(error);
-
-    error = com_send_uint32_blocking(channel_id, dir_handle, REASON_FILE_DIR_CLOSEDIR);
-    KELP_RETURN_ON_ERROR(error);
-
-    kelp_error_t service_error;
-    error = com_check_for_error_blocking(channel_id, &service_error);
-    KELP_RETURN_ON_ERROR(error);
-    KELP_RETURN_ON_ERROR(service_error);
-
-    return KELP_OK;
-}
-
-kelp_error_t kelp_fs_dir_rewinddir(uint32_t dir_handle) {
-    uint16_t channel_id = 0;
-    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
-    KELP_RETURN_ON_ERROR(error);
-
-    error = com_send_uint32_blocking(channel_id, dir_handle, REASON_FILE_DIR_REWINDDIR);
-    KELP_RETURN_ON_ERROR(error);
-
-    kelp_error_t service_error;
-    error = com_check_for_error_blocking(channel_id, &service_error);
-    KELP_RETURN_ON_ERROR(error);
-    KELP_RETURN_ON_ERROR(service_error);
-
-    return KELP_OK;
-}
 
 kelp_error_t kelp_fs_dir_mkdir(const char* path) {
     uint16_t channel_id = 0;
@@ -549,6 +480,134 @@ kelp_error_t kelp_fs_dir_mkdir(const char* path) {
     error = com_check_for_error_blocking(channel_id, &service_error);
     KELP_RETURN_ON_ERROR(error);
     KELP_RETURN_ON_ERROR(service_error);
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_fs_dir_open(const char* path, uint32_t* dir_handle) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_char_array_blocking(channel_id, path, strlen(path) + 1, REASON_FILE_DIR_OPEN);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
+
+    uint16_t reason;
+    error = com_get_uint32_blocking(channel_id, dir_handle, &reason);
+    KELP_RETURN_ON_ERROR(error);
+
+    if (reason != REASON_FILE_DIR_OPEN) {
+        return KELP_WRONG_REASON;
+    }
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_fs_dir_close(uint32_t dir_handle) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_uint32_blocking(channel_id, dir_handle, REASON_FILE_DIR_CLOSE);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_fs_dir_read(uint32_t dir_handle, kelp_fs_dirent_t* entry) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_uint32_blocking(channel_id, dir_handle, REASON_FILE_DIR_READ);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
+
+    uint16_t reason;
+    uint32_t bytes_read;
+    error = com_get_char_array_blocking(channel_id, (char*)entry, sizeof(kelp_fs_dirent_t), &bytes_read, &reason);
+    KELP_RETURN_ON_ERROR(error);
+
+    if (reason != REASON_FILE_DIR_READ) {
+        return KELP_WRONG_REASON;
+    }
+
+    if (bytes_read != sizeof(kelp_fs_dirent_t)) {
+        return KELP_PROTOCOL;
+    }
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_fs_dir_rewind(uint32_t dir_handle) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_uint32_blocking(channel_id, dir_handle, REASON_FILE_DIR_REWIND);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_fs_dir_seek(uint32_t handle, int32_t offset) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_uint32_blocking(channel_id, handle, REASON_FILE_DIR_SEEK);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_int32_blocking(channel_id, offset, REASON_FILE_DIR_SEEK);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
+
+    return KELP_OK;
+}
+
+kelp_error_t kelp_fs_dir_tell(uint32_t handle, uint32_t* pos) {
+    uint16_t channel_id = 0;
+    kelp_error_t error = com_channel_request_blocking(FILE_SERVICE_PID, true, &channel_id);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_uint32_blocking(channel_id, handle, REASON_FILE_DIR_TELL);
+    KELP_RETURN_ON_ERROR(error);
+
+    kelp_error_t service_error;
+    error = com_check_for_error_blocking(channel_id, &service_error);
+    KELP_RETURN_ON_ERROR(error);
+    KELP_RETURN_ON_ERROR(service_error);
+
+    uint16_t reason;
+    error = com_get_uint32_blocking(channel_id, pos, &reason);
+    KELP_RETURN_ON_ERROR(error);
+
+    if (reason != REASON_FILE_DIR_TELL) {
+        return KELP_WRONG_REASON;
+    }
 
     return KELP_OK;
 }
@@ -656,6 +715,86 @@ static kelp_error_t kelp_fs_handle_stat_request(uint16_t channel_id, char* data,
     KELP_RETURN_ON_ERROR(error);
 
     error = com_send_char_array_blocking(channel_id, (char*)&dirent, sizeof(dirent), REASON_FILE_STAT);
+    KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
+}
+
+static kelp_error_t kelp_fs_handle_rename_request(uint16_t channel_id, char* old_path, uint32_t old_size) {
+    if (old_size > FILE_SERVICE_MAX_NAME) {
+        return KELP_TOO_BIG;
+    }
+
+    char new_path[FILE_SERVICE_MAX_NAME];
+    uint32_t new_size;
+    uint16_t reason;
+    kelp_error_t error = com_get_char_array_blocking(channel_id, new_path, FILE_SERVICE_MAX_NAME, &new_size, &reason);
+    KELP_RETURN_ON_ERROR(error);
+    if (reason != REASON_FILE_RENAME) {
+        return KELP_WRONG_REASON;
+    }
+
+    // TODO: How is this supposed to be possible if FILE_SERVICE_MAX_NAME is max size above?
+    if (new_size > FILE_SERVICE_MAX_NAME) {
+        return KELP_TOO_BIG;
+    }
+
+    uint8_t mount_id;
+    const char* old_device_path = extract_mount_path(old_path, &mount_id);
+    if (old_device_path == NULL) {
+        return KELP_NO_EXIST;
+    }
+    if (!is_valid_mount(mount_id)) {
+        return KELP_NO_EXIST;
+    }
+
+    uint8_t new_mount_id;
+    const char* new_device_path = extract_mount_path(new_path, &new_mount_id);
+    if (new_device_path == NULL) {
+        return KELP_NO_EXIST;
+    }
+    if (!is_valid_mount(new_mount_id)) {
+        return KELP_NO_EXIST;
+    }
+
+    // Both paths must be on the same mount
+    if (mount_id != new_mount_id) {
+        return KELP_WRONG_TYPE;
+    }
+
+    kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[mount_id];
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    error = plugin->rename(mount, old_device_path, new_device_path);
+    KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
+}
+
+static kelp_error_t kelp_fs_handle_remove_request(uint16_t channel_id, char* data, uint16_t size) {
+    if (size > FILE_SERVICE_MAX_NAME) {
+        return KELP_TOO_BIG;
+    }
+
+    char* path = data;
+
+    // get mount id and path from path
+    uint8_t mount_id;
+    const char* device_path = extract_mount_path(path, &mount_id);
+    if (device_path == NULL) {
+        return KELP_NO_EXIST;
+    }
+
+    // check mount exists
+    if (!is_valid_mount(mount_id)) {
+        return KELP_NO_EXIST;
+    }
+
+    // get mount
+    kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[mount_id];
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    kelp_error_t error = plugin->remove(mount, device_path);
     KELP_RETURN_ON_ERROR(error);
 
     return KELP_OK;
@@ -991,202 +1130,6 @@ static kelp_error_t kelp_fs_handle_file_truncate_request(uint16_t channel_id, ui
     return KELP_OK;
 }
 
-static kelp_error_t kelp_fs_handle_file_rename_request(uint16_t channel_id, char* old_path, uint32_t old_size) {
-    if (old_size > FILE_SERVICE_MAX_NAME) {
-        return KELP_TOO_BIG;
-    }
-
-    char new_path[FILE_SERVICE_MAX_NAME];
-    uint32_t new_size;
-    uint16_t reason;
-    kelp_error_t error = com_get_char_array(channel_id, new_path, FILE_SERVICE_MAX_NAME, &new_size, &reason);
-    KELP_RETURN_ON_ERROR(error);
-    if (reason != REASON_FILE_FILE_RENAME) {
-        return KELP_WRONG_REASON;
-    }
-
-    // TODO: How is this supposed to be possible if FILE_SERVICE_MAX_NAME is max size above?
-    if (new_size > FILE_SERVICE_MAX_NAME) {
-        return KELP_TOO_BIG;
-    }
-
-    uint8_t mount_id;
-    const char* old_device_path = extract_mount_path(old_path, &mount_id);
-    if (old_device_path == NULL) {
-        return KELP_NO_EXIST;
-    }
-    if (!is_valid_mount(mount_id)) {
-        return KELP_NO_EXIST;
-    }
-
-    uint8_t new_mount_id;
-    const char* new_device_path = extract_mount_path(new_path, &new_mount_id);
-    if (new_device_path == NULL) {
-        return KELP_NO_EXIST;
-    }
-    if (!is_valid_mount(new_mount_id)) {
-        return KELP_NO_EXIST;
-    }
-
-    // Both paths must be on the same mount
-    if (mount_id != new_mount_id) {
-        return KELP_WRONG_TYPE;
-    }
-
-    kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[mount_id];
-    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
-
-    error = plugin->file_rename(mount, old_device_path, new_device_path);
-    KELP_RETURN_ON_ERROR(error);
-
-    return KELP_OK;
-}
-
-static kelp_error_t kelp_fs_handle_dir_opendir_request(uint16_t channel_id, char* data, uint16_t size) {
-    if (size > FILE_SERVICE_MAX_NAME) {
-        return KELP_TOO_BIG;
-    }
-
-    char* path = data;
-
-    uint8_t mount_id;
-    const char* device_path = extract_mount_path(path, &mount_id);
-    if (device_path == NULL) {
-        return KELP_NO_EXIST;
-    }
-
-    if (!is_valid_mount(mount_id)) {
-        return KELP_NO_EXIST;
-    }
-
-    kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[mount_id];
-    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
-
-    // Check if plugin supports opendir
-    if (plugin->dir_opendir == NULL) {
-        return KELP_WRONG_TYPE;
-    }
-
-    int64_t handle_id = get_free_handle();
-    if (handle_id < 0) {
-        return KELP_NONE_FREE;
-    }
-
-    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[handle_id];
-
-    kelp_error_t error = plugin->dir_opendir(mount, device_path, &handle->handle);
-    if (error != KELP_OK) {
-        return error;
-    }
-
-    // Set the handle type to DIR
-    handle->type = FS_HANDLE_DIR;
-
-    error = com_send_uint32_blocking(channel_id, handle_id, REASON_FILE_DIR_OPENDIR);
-    KELP_RETURN_ON_ERROR(error);
-
-    handle->active = true;
-    handle->owner_pid = get_channel_partner_pid(channel_id);
-    handle->mount = mount;
-
-    return KELP_OK;
-}
-
-static kelp_error_t kelp_fs_handle_dir_readdir_request(uint16_t channel_id, uint32_t dir_handle) {
-    if (!is_valid_handle(dir_handle)) {
-        return KELP_NO_EXIST;
-    }
-
-    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[dir_handle];
-
-    if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
-        return KELP_NOT_OWNER;
-    }
-
-    // Validate handle type
-    if (handle->type != FS_HANDLE_DIR) {
-        return KELP_WRONG_TYPE;  // Can't readdir on a file handle
-    }
-
-    kelp_fs_mount_t* mount = handle->mount;
-    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
-
-    if (plugin->dir_readdir == NULL) {
-        return KELP_WRONG_TYPE;
-    }
-
-    kelp_fs_dirent_t entry;
-    kelp_error_t error = plugin->dir_readdir(mount, handle->handle, &entry);
-    if (error != KELP_OK) {
-        return error;
-    }
-
-    error = com_send_char_array_blocking(channel_id, (char*)&entry, sizeof(entry), REASON_FILE_DIR_READDIR);
-    KELP_RETURN_ON_ERROR(error);
-
-    return KELP_OK;
-}
-
-static kelp_error_t kelp_fs_handle_dir_closedir_request(uint16_t channel_id, uint32_t dir_handle) {
-    if (!is_valid_handle(dir_handle)) {
-        return KELP_NO_EXIST;
-    }
-
-    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[dir_handle];
-
-    if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
-        return KELP_NOT_OWNER;
-    }
-
-    // Validate handle type
-    if (handle->type != FS_HANDLE_DIR) {
-        return KELP_WRONG_TYPE;  // Can't closedir on a file handle
-    }
-
-    kelp_fs_mount_t* mount = handle->mount;
-    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
-
-    if (plugin->dir_closedir == NULL) {
-        return KELP_WRONG_TYPE;
-    }
-
-    kelp_error_t error = plugin->dir_closedir(mount, handle->handle);
-    KELP_RETURN_ON_ERROR(error);
-
-    clear_handle(handle);
-
-    return KELP_OK;
-}
-
-static kelp_error_t kelp_fs_handle_dir_rewinddir_request(uint16_t channel_id, uint32_t dir_handle) {
-    if (!is_valid_handle(dir_handle)) {
-        return KELP_NO_EXIST;
-    }
-
-    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[dir_handle];
-
-    if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
-        return KELP_NOT_OWNER;
-    }
-
-    // Validate handle type
-    if (handle->type != FS_HANDLE_DIR) {
-        return KELP_WRONG_TYPE;  // Can't rewinddir on a file handle
-    }
-
-    kelp_fs_mount_t* mount = handle->mount;
-    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
-
-    if (plugin->dir_rewinddir == NULL) {
-        return KELP_WRONG_TYPE;
-    }
-
-    kelp_error_t error = plugin->dir_rewinddir(mount, handle->handle);
-    KELP_RETURN_ON_ERROR(error);
-
-    return KELP_OK;
-}
-
 static kelp_error_t kelp_fs_handle_dir_mkdir_request(uint16_t channel_id, char* data, uint16_t size) {
     if (size > FILE_SERVICE_MAX_NAME) {
         return KELP_TOO_BIG;
@@ -1207,11 +1150,219 @@ static kelp_error_t kelp_fs_handle_dir_mkdir_request(uint16_t channel_id, char* 
     kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[mount_id];
     const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
 
-    if (plugin->dir_mkdir == NULL) {
+    // if (plugin->dir_mkdir == NULL) {
+    //     return KELP_WRONG_TYPE;
+    // }
+
+    kelp_error_t error = plugin->dir_mkdir(mount, device_path);
+    KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
+}
+
+static kelp_error_t kelp_fs_handle_dir_open_request(uint16_t channel_id, char* data, uint16_t size) {
+    if (size > FILE_SERVICE_MAX_NAME) {
+        return KELP_TOO_BIG;
+    }
+
+    char* path = data;
+
+    uint8_t mount_id;
+    const char* device_path = extract_mount_path(path, &mount_id);
+    if (device_path == NULL) {
+        return KELP_NO_EXIST;
+    }
+
+    if (!is_valid_mount(mount_id)) {
+        return KELP_NO_EXIST;
+    }
+
+    kelp_fs_mount_t* mount = &kelp_fs_manager.mounts[mount_id];
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    // Check if plugin supports opendir
+    // if (plugin->dir_open == NULL) {
+    //     return KELP_WRONG_TYPE;
+    // }
+
+    int64_t handle_id = get_free_handle();
+    if (handle_id < 0) {
+        return KELP_NONE_FREE;
+    }
+
+    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[handle_id];
+
+    kelp_error_t error = plugin->dir_open(mount, device_path, &handle->handle);
+    if (error != KELP_OK) {
+        return error;
+    }
+
+    // Set the handle type to DIR
+    handle->type = FS_HANDLE_DIR;
+
+    error = com_send_uint32_blocking(channel_id, handle_id, REASON_FILE_DIR_OPEN);
+    KELP_RETURN_ON_ERROR(error);
+
+    handle->active = true;
+    handle->owner_pid = get_channel_partner_pid(channel_id);
+    handle->mount = mount;
+
+    return KELP_OK;
+}
+
+static kelp_error_t kelp_fs_handle_dir_close_request(uint16_t channel_id, uint32_t dir_handle) {
+    if (!is_valid_handle(dir_handle)) {
+        return KELP_NO_EXIST;
+    }
+
+    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[dir_handle];
+
+    if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
+        return KELP_NOT_OWNER;
+    }
+
+    // Validate handle type
+    if (handle->type != FS_HANDLE_DIR) {
+        return KELP_WRONG_TYPE;  // Can't closedir on a file handle
+    }
+
+    kelp_fs_mount_t* mount = handle->mount;
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    // if (plugin->dir_close == NULL) {
+    //     return KELP_WRONG_TYPE;
+    // }
+
+    kelp_error_t error = plugin->dir_close(mount, handle->handle);
+    KELP_RETURN_ON_ERROR(error);
+
+    clear_handle(handle);
+
+    return KELP_OK;
+}
+
+static kelp_error_t kelp_fs_handle_dir_read_request(uint16_t channel_id, uint32_t dir_handle) {
+    if (!is_valid_handle(dir_handle)) {
+        return KELP_NO_EXIST;
+    }
+
+    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[dir_handle];
+
+    if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
+        return KELP_NOT_OWNER;
+    }
+
+    // Validate handle type
+    if (handle->type != FS_HANDLE_DIR) {
+        return KELP_WRONG_TYPE;  // Can't readdir on a file handle
+    }
+
+    kelp_fs_mount_t* mount = handle->mount;
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    // if (plugin->dir_read == NULL) {
+    //     return KELP_WRONG_TYPE;
+    // }
+
+    kelp_fs_dirent_t entry;
+    kelp_error_t error = plugin->dir_read(mount, handle->handle, &entry);
+    if (error != KELP_OK) {
+        return error;
+    }
+
+    error = com_send_char_array_blocking(channel_id, (char*)&entry, sizeof(entry), REASON_FILE_DIR_READ);
+    KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
+}
+
+static kelp_error_t kelp_fs_handle_dir_rewind_request(uint16_t channel_id, uint32_t dir_handle) {
+    if (!is_valid_handle(dir_handle)) {
+        return KELP_NO_EXIST;
+    }
+
+    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[dir_handle];
+
+    if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
+        return KELP_NOT_OWNER;
+    }
+
+    // Validate handle type
+    if (handle->type != FS_HANDLE_DIR) {
+        return KELP_WRONG_TYPE;  // Can't rewinddir on a file handle
+    }
+
+    kelp_fs_mount_t* mount = handle->mount;
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    // if (plugin->dir_rewind == NULL) {
+    //     return KELP_WRONG_TYPE;
+    // }
+
+    kelp_error_t error = plugin->dir_rewind(mount, handle->handle);
+    KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
+}
+
+static kelp_error_t kelp_fs_handle_dir_seek_request(uint16_t channel_id, uint32_t handle_id) {
+    int32_t offset;
+    uint16_t reason;
+    kelp_error_t error = com_get_int32_blocking(channel_id, &offset, &reason);
+    KELP_RETURN_ON_ERROR(error);
+
+    if (reason != REASON_FILE_DIR_SEEK) {
+        return KELP_WRONG_REASON;
+    }
+
+    if (!is_valid_handle(handle_id)) {
+        return KELP_NO_EXIST;
+    }
+
+    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[handle_id];
+
+    if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
+        return KELP_NOT_OWNER;
+    }
+
+    // Validate handle type
+    if (handle->type != FS_HANDLE_DIR) {
+        return KELP_WRONG_TYPE;  // Can't seek on a directory handle
+    }
+
+    kelp_fs_mount_t* mount = handle->mount;
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    error = plugin->dir_seek(mount, handle->handle, offset);
+    KELP_RETURN_ON_ERROR(error);
+
+    return KELP_OK;
+}
+
+static kelp_error_t kelp_fs_handle_dir_tell_request(uint16_t channel_id, uint32_t handle_id) {
+    if (!is_valid_handle(handle_id)) {
+        return KELP_NO_EXIST;
+    }
+
+    kelp_fs_handle_t* handle = &kelp_fs_manager.handles[handle_id];
+
+    if (!task_owns_handle(get_channel_partner_pid(channel_id), handle)) {
+        return KELP_NOT_OWNER;
+    }
+
+    // Validate handle type
+    if (handle->type != FS_HANDLE_DIR) {
         return KELP_WRONG_TYPE;
     }
 
-    kelp_error_t error = plugin->dir_mkdir(mount, device_path);
+    kelp_fs_mount_t* mount = handle->mount;
+    const kelp_fs_backend_plugin_t* plugin = kelp_fs_manager.plugins[mount->plugin_id];
+
+    int32_t position;
+    kelp_error_t error = plugin->dir_tell(mount, handle->handle, &position);
+    KELP_RETURN_ON_ERROR(error);
+
+    error = com_send_uint32_blocking(channel_id, position, REASON_FILE_DIR_TELL);
     KELP_RETURN_ON_ERROR(error);
 
     return KELP_OK;
@@ -1344,16 +1495,24 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                         error = kelp_fs_handle_file_truncate_request(channel_id, data);
                         com_send_error_blocking(channel_id, error);
                         break;
-                    case REASON_FILE_DIR_CLOSEDIR:
-                        error = kelp_fs_handle_dir_closedir_request(channel_id, data);
+                    case REASON_FILE_DIR_CLOSE:
+                        error = kelp_fs_handle_dir_close_request(channel_id, data);
                         com_send_error_blocking(channel_id, error);
                         break;
-                    case REASON_FILE_DIR_REWINDDIR:
-                        error = kelp_fs_handle_dir_rewinddir_request(channel_id, data);
+                    case REASON_FILE_DIR_REWIND:
+                        error = kelp_fs_handle_dir_rewind_request(channel_id, data);
                         com_send_error_blocking(channel_id, error);
                         break;
-                    case REASON_FILE_DIR_READDIR:
-                        error = kelp_fs_handle_dir_readdir_request(channel_id, data);
+                    case REASON_FILE_DIR_READ:
+                        error = kelp_fs_handle_dir_read_request(channel_id, data);
+                        com_send_error_blocking(channel_id, error);
+                        break;
+                    case REASON_FILE_DIR_SEEK:
+                        error = kelp_fs_handle_dir_seek_request(channel_id, data);
+                        com_send_error_blocking(channel_id, error);
+                        break;
+                    case REASON_FILE_DIR_TELL:
+                        error = kelp_fs_handle_dir_tell_request(channel_id, data);
                         com_send_error_blocking(channel_id, error);
                         break;
                     default: break;
@@ -1405,17 +1564,21 @@ void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {
                         error = kelp_fs_handle_file_open_request(channel_id, data, size);
                         com_send_error_blocking(channel_id, error);
                         break;
-                    case REASON_FILE_DIR_OPENDIR:
-                        error = kelp_fs_handle_dir_opendir_request(channel_id, data, size);
+                    case REASON_FILE_DIR_OPEN:
+                        error = kelp_fs_handle_dir_open_request(channel_id, data, size);
                         com_send_error_blocking(channel_id, error);
                         break;
                     case REASON_FILE_DIR_MKDIR:
                         error = kelp_fs_handle_dir_mkdir_request(channel_id, data, size);
                         com_send_error_blocking(channel_id, error);
                         break;
-                    case REASON_FILE_FILE_RENAME:
+                    case REASON_FILE_RENAME:
                         // rename: first string is old path, second is new path
-                        error = kelp_fs_handle_file_rename_request(channel_id, data, size);
+                        error = kelp_fs_handle_rename_request(channel_id, data, size);
+                        com_send_error_blocking(channel_id, error);
+                        break;
+                    case REASON_FILE_DELETE:
+                        error = kelp_fs_handle_remove_request(channel_id, data, size);
                         com_send_error_blocking(channel_id, error);
                         break;
                     default: break;
