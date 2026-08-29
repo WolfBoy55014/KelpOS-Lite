@@ -243,6 +243,10 @@ kelp_error_t kelp_fs_unmount(uint8_t device_id);
 
 kelp_error_t kelp_fs_stat(const char* path, kelp_fs_dirent_t* out);
 
+kelp_error_t kelp_fs_rename(const char* old_path, const char* new_path);
+
+kelp_error_t kelp_fs_remove(const char* path);
+
 /* File operations */
 kelp_error_t kelp_fs_file_open(const char* path, uint32_t flags, uint32_t* handle);
 
@@ -261,8 +265,6 @@ kelp_error_t kelp_fs_file_size(uint32_t handle, uint32_t* size);
 kelp_error_t kelp_fs_file_flush(uint32_t handle);
 
 kelp_error_t kelp_fs_file_truncate(uint32_t handle, uint32_t size);
-
-kelp_error_t kelp_fs_rename(const char* old_path, const char* new_path);
 
 /* Directory operations */
 kelp_error_t kelp_fs_dir_mkdir(const char* path);
