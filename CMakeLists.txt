@@ -86,6 +86,7 @@ target_link_libraries(KelpOS-Lite
         tasks_health
         tasks_service
         tasks_driver
+        lib_filesystems
         shell
         app_coremark
         )

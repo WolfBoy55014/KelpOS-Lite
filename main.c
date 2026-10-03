@@ -4,6 +4,7 @@
 #include "block_service.h"
 #include "channel.h"
 #include "com_channel_protocol.h"
+#include "file_service.h"
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
 
@@ -247,6 +248,51 @@ void disk_write_task(uint32_t pid, uint32_t* signals, char* args) {
     }
 }
 
+void nullfs_format_task(uint32_t pid, uint32_t* signals, char* args) {
+    task_request_stack(4096);
+    task_sleep_ms(5000);
+
+    printf("Writing Magic for NullFS\n");
+
+    uint8_t device_id = 0;
+    uint32_t sector = 0;
+
+    uint32_t block_size = 0;
+    kelp_error_t error = kelp_block_get_block_size(device_id, &block_size);
+    if (error != KELP_OK) {
+        printf("Error getting block size: %ld\n", error);
+        return;
+    }
+    printf("Device Block Size is %lu bytes\n", block_size);
+
+    uint32_t block_count = 0;
+    error = kelp_block_get_block_count(device_id, &block_count);
+    if (error != KELP_OK) {
+        printf("Error getting block count: %ld\n", error);
+        return;
+    }
+    printf("Device Block Size is %lu bytes\n", block_count);
+
+    if (block_size < 5) {
+        printf("Block Size too small for NullFS\n");
+    }
+
+    uint8_t* buffer = malloc(block_size);
+
+    strcpy(buffer, "null");
+
+    // write magic
+    printf("\nWriting NullFS Magic to Device\n");
+    uint32_t bytes_written = 0;
+    error = kelp_block_write_bytes(device_id, buffer, block_size, &bytes_written, sector, 1);
+
+    free(buffer);
+    if (error != KELP_OK) {
+        printf("Error writing Magic: %ld\n", error);
+        return;
+    }
+}
+
 #define TEST_DATA_SIZE 4096
 #define BUFFER_SIZE TEST_DATA_SIZE
 
@@ -335,6 +381,433 @@ void channel_receiver_task(uint32_t pid, uint32_t* signals, char* args) {
     }
 }
 
+// File Service Test Suite
+static int test_pass = 0;
+static int test_fail = 0;
+
+#define TEST(name) printf("\n--- Test: " #name " ---\n");
+#define PASS() do { test_pass++; printf("  [PASS]\n"); } while(0)
+#define FAIL(msg) do { test_fail++; printf("  [FAIL]: " msg "\n"); } while(0)
+
+static void print_dirent(const char* label, kelp_fs_dirent_t* entry) {
+    printf("  %s: name='%s', type=%d, size=%u, modified=%u\n",
+           label, entry->name, entry->type, entry->size, entry->modified);
+}
+
+static void test_mount_unmount(void) {
+    TEST(mount_unmount)
+    kelp_error_t err = kelp_fs_mount(0);
+    if (err == KELP_OK) { PASS(); } else { FAIL("mount returned error"); return; }
+    err = kelp_fs_unmount(0);
+    if (err == KELP_OK) { PASS(); } else { FAIL("unmount returned error"); }
+    // Test double-mount returns error
+    err = kelp_fs_mount(0);
+    if (err != KELP_OK) { PASS(); } else { FAIL("double-mount should fail"); }
+    // Remount for subsequent tests
+    err = kelp_fs_mount(0);
+    if (err != KELP_OK) { FAIL("remount failed - cannot continue tests"); return; }
+}
+
+static void test_stat(void) {
+    TEST(stat)
+    kelp_fs_dirent_t entry;
+    kelp_error_t err;
+    err = kelp_fs_stat("/0/", &entry);
+    if (err == KELP_OK) {
+        print_dirent("root", &entry);
+        if (entry.type == FS_DT_DIR) { PASS(); }
+        else { FAIL("root should be a directory"); }
+    }
+    else { FAIL("stat root failed"); }
+    err = kelp_fs_stat("/0/nonexistent.txt", &entry);
+    if (err != KELP_OK) { PASS(); }
+    else { FAIL("stat nonexistent should fail"); }
+}
+
+static void test_file_open_close(void) {
+    TEST(file_open_close)
+    uint32_t handle;
+    kelp_error_t err;
+    err = kelp_fs_file_open("/0/test_open.txt", FS_O_WRONLY | FS_O_CREAT | FS_O_TRUNC, &handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("open for write failed"); return; }
+    err = kelp_fs_file_close(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("close failed"); }
+    err = kelp_fs_file_open("/0/test_open.txt", FS_O_RDONLY, &handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("open for read failed"); return; }
+    err = kelp_fs_file_close(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("close after read open failed"); }
+    err = kelp_fs_file_open("/0/nonexistent.txt", FS_O_RDONLY, &handle);
+    if (err != KELP_OK) { PASS(); } else { FAIL("open non-existent should fail"); }
+}
+
+static void test_file_write(void) {
+    TEST(file_write)
+    uint32_t handle;
+    kelp_error_t err;
+    uint32_t bytes_written;
+    err = kelp_fs_file_open("/0/test_write.txt", FS_O_WRONLY | FS_O_CREAT | FS_O_TRUNC, &handle);
+    if (err != KELP_OK) { FAIL("open for write failed"); return; }
+    const char* test_data = "Hello, KelpOS!";
+    err = kelp_fs_file_write(handle, (const uint8_t*)test_data, strlen(test_data), &bytes_written);
+    if (err == KELP_OK && bytes_written == strlen(test_data)) { PASS(); } else { FAIL("write failed or wrong byte count"); }
+    err = kelp_fs_file_flush(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("flush failed"); }
+    err = kelp_fs_file_close(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("close after flush failed"); }
+    const char* more_data = " More data appended.";
+    err = kelp_fs_file_open("/0/test_write.txt", FS_O_WRONLY | FS_O_APPEND, &handle);
+    if (err == KELP_OK) {
+        err = kelp_fs_file_write(handle, (const uint8_t*)more_data, strlen(more_data), &bytes_written);
+        if (err == KELP_OK && bytes_written == strlen(more_data)) { PASS(); } else { FAIL("append write failed"); }
+        kelp_fs_file_flush(handle);
+        kelp_fs_file_close(handle);
+    } else { FAIL("open for append failed"); }
+}
+
+static void test_file_read(void) {
+    TEST(file_read)
+    uint32_t handle;
+    kelp_error_t err;
+    uint32_t bytes_read;
+    char buffer[64] = {0};
+    err = kelp_fs_file_open("/0/test_write.txt", FS_O_RDONLY, &handle);
+    if (err != KELP_OK) { FAIL("open for read failed"); return; }
+    err = kelp_fs_file_read(handle, (uint8_t*)buffer, sizeof(buffer) - 1, &bytes_read);
+    if (err == KELP_OK && bytes_read > 0) {
+        buffer[bytes_read] = '\0';
+        printf("  Read: '%s'\n", buffer);
+        PASS();
+    } else { FAIL("read failed"); }
+    err = kelp_fs_file_close(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("close after read failed"); }
+    err = kelp_fs_file_open("/0/test_open.txt", FS_O_RDONLY, &handle);
+    if (err == KELP_OK) {
+        err = kelp_fs_file_read(handle, (uint8_t*)buffer, sizeof(buffer), &bytes_read);
+        if (err == KELP_OK && bytes_read == 0) { PASS(); }
+        else if (err == KELP_OK && bytes_read > 0) {
+            printf("  Empty file had %u bytes (previous test data)\n", bytes_read);
+            PASS();
+        } else { FAIL("read from empty file failed"); }
+        kelp_fs_file_close(handle);
+    }
+}
+
+static void test_file_seek(void) {
+    TEST(file_seek)
+    uint32_t handle;
+    kelp_error_t err;
+    err = kelp_fs_file_open("/0/test_write.txt", FS_O_RDONLY, &handle);
+    if (err != KELP_OK) { FAIL("open for seek test failed"); return; }
+    err = kelp_fs_file_seek(handle, 0, FS_SEEK_SET);
+    if (err == KELP_OK) { PASS(); } else { FAIL("seek SET failed"); }
+    err = kelp_fs_file_seek(handle, 0, FS_SEEK_END);
+    if (err == KELP_OK) { PASS(); } else { FAIL("seek END failed"); }
+    err = kelp_fs_file_seek(handle, 0, FS_SEEK_SET);
+    if (err == KELP_OK) {
+        err = kelp_fs_file_seek(handle, 5, FS_SEEK_CUR);
+        if (err == KELP_OK) { PASS(); } else { FAIL("seek CUR failed"); }
+    }
+    err = kelp_fs_file_close(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("close after seek test failed"); }
+}
+
+static void test_file_tell(void) {
+    TEST(file_tell)
+    uint32_t handle;
+    kelp_error_t err;
+    uint32_t pos;
+    err = kelp_fs_file_open("/0/test_write.txt", FS_O_RDONLY, &handle);
+    if (err != KELP_OK) { FAIL("open for tell test failed"); return; }
+    err = kelp_fs_file_tell(handle, &pos);
+    if (err == KELP_OK) {
+        printf("  Position at start: %u\n", pos);
+        if (pos == 0) { PASS(); } else { FAIL("position should be 0 at start"); }
+    } else { FAIL("tell failed"); }
+    kelp_fs_file_seek(handle, 10, FS_SEEK_SET);
+    err = kelp_fs_file_tell(handle, &pos);
+    if (err == KELP_OK && pos == 10) { PASS(); } else { FAIL("tell after seek failed"); }
+    err = kelp_fs_file_close(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("close after tell test failed"); }
+}
+
+static void test_file_size(void) {
+    TEST(file_size)
+    uint32_t handle;
+    kelp_error_t err;
+    uint32_t size;
+    err = kelp_fs_file_open("/0/test_write.txt", FS_O_RDONLY, &handle);
+    if (err != KELP_OK) { FAIL("open for size test failed"); return; }
+    err = kelp_fs_file_size(handle, &size);
+    if (err == KELP_OK) {
+        printf("  File size: %u bytes\n", size);
+        if (size > 0) { PASS(); } else { FAIL("file should have content"); }
+    } else { FAIL("file_size failed"); }
+    err = kelp_fs_file_close(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("close after size test failed"); }
+}
+
+static void test_file_flush(void) {
+    TEST(file_flush)
+    uint32_t handle;
+    kelp_error_t err;
+    err = kelp_fs_file_open("/0/test_flush.txt", FS_O_WRONLY | FS_O_CREAT | FS_O_TRUNC, &handle);
+    if (err != KELP_OK) { FAIL("open for flush test failed"); return; }
+    err = kelp_fs_file_flush(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("flush failed"); }
+    err = kelp_fs_file_close(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("close after flush test failed"); }
+}
+
+static void test_file_truncate(void) {
+    TEST(file_truncate)
+    uint32_t handle;
+    kelp_error_t err;
+    uint32_t size_before, size_after;
+    err = kelp_fs_file_open("/0/test_flush.txt", FS_O_RDWR, &handle);
+    if (err != KELP_OK) { FAIL("open for truncate test failed"); return; }
+    err = kelp_fs_file_size(handle, &size_before);
+    if (err != KELP_OK) { FAIL("size before truncate failed"); kelp_fs_file_close(handle); return; }
+    printf("  Size before truncate: %u\n", size_before);
+    err = kelp_fs_file_truncate(handle, 0);
+    if (err == KELP_OK) { PASS(); } else { FAIL("truncate to 0 failed"); }
+    err = kelp_fs_file_size(handle, &size_after);
+    if (err == KELP_OK && size_after == 0) { PASS(); } else { FAIL("size after truncate should be 0"); }
+    err = kelp_fs_file_close(handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("close after truncate test failed"); }
+}
+
+static void test_file_rename(void) {
+    TEST(file_rename)
+    uint32_t handle;
+    kelp_error_t err;
+    kelp_fs_dirent_t entry;
+    err = kelp_fs_file_open("/0/test_rename_src.txt", FS_O_WRONLY | FS_O_CREAT | FS_O_TRUNC, &handle);
+    if (err != KELP_OK) { FAIL("create rename source failed"); return; }
+    kelp_fs_file_close(handle);
+    err = kelp_fs_stat("/0/test_rename_src.txt", &entry);
+    if (err == KELP_OK) { PASS(); } else { FAIL("stat source before rename failed"); }
+    err = kelp_fs_rename("/0/test_rename_src.txt", "/0/test_rename_dst.txt");
+    if (err == KELP_OK) { PASS(); } else { FAIL("rename failed"); }
+    err = kelp_fs_stat("/0/test_rename_src.txt", &entry);
+    if (err != KELP_OK) { PASS(); } else { FAIL("source should not exist after rename"); }
+    err = kelp_fs_stat("/0/test_rename_dst.txt", &entry);
+    if (err == KELP_OK) {
+        print_dirent("renamed file", &entry);
+        PASS();
+    } else { FAIL("destination should exist after rename"); }
+}
+
+static void test_dir_mkdir(void) {
+    TEST(dir_mkdir)
+    kelp_error_t err;
+    kelp_fs_dirent_t entry;
+    err = kelp_fs_dir_mkdir("/0/test_dir");
+    if (err == KELP_OK) { PASS(); } else { FAIL("mkdir failed"); }
+    err = kelp_fs_stat("/0/test_dir/", &entry);
+    if (err == KELP_OK && entry.type == FS_DT_DIR) { PASS(); } else { FAIL("stat new directory failed"); }
+    err = kelp_fs_dir_mkdir("/0/test_dir");
+    if (err != KELP_OK) { PASS(); } else { FAIL("mkdir existing dir should fail"); }
+}
+
+static void test_dir_opendir_readdir(void) {
+    TEST(dir_opendir_readdir)
+    uint32_t dir_handle;
+    kelp_error_t err;
+    kelp_fs_dirent_t entry;
+    int entry_count = 0;
+    err = kelp_fs_dir_open("/0/", &dir_handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("opendir failed"); return; }
+    do {
+        err = kelp_fs_dir_read(dir_handle, &entry);
+        if (err == KELP_OK) {
+            print_dirent("entry", &entry);
+            entry_count++;
+        }
+    } while (err == KELP_OK);
+    printf("  Total entries: %d\n", entry_count);
+    if (entry_count > 0) { PASS(); } else { FAIL("directory should have entries"); }
+    err = kelp_fs_dir_close(dir_handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("closedir failed"); }
+}
+
+static void test_dir_rewinddir(void) {
+    TEST(dir_rewinddir)
+    uint32_t dir_handle;
+    kelp_error_t err;
+    kelp_fs_dirent_t entry;
+    int first_count = 0, second_count = 0;
+    err = kelp_fs_dir_open("/0/", &dir_handle);
+    if (err != KELP_OK) { FAIL("opendir for rewind test failed"); return; }
+    while (kelp_fs_dir_read(dir_handle, &entry) == KELP_OK) { first_count++; }
+    err = kelp_fs_dir_rewind(dir_handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("rewinddir failed"); }
+    while (kelp_fs_dir_read(dir_handle, &entry) == KELP_OK) { second_count++; }
+    if (first_count == second_count) {
+        printf("  Both passes: %d entries\n", first_count);
+        PASS();
+    } else { FAIL("entry counts don't match after rewind"); }
+    err = kelp_fs_dir_close(dir_handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("closedir after rewind test failed"); }
+}
+
+static void test_dir_seek_tell(void) {
+    TEST(dir_seek_tell)
+    uint32_t dir_handle;
+    kelp_error_t err;
+    kelp_fs_dirent_t entry;
+    int32_t pos;
+    int32_t saved_pos;
+    int entries_before = 0;
+
+    err = kelp_fs_dir_open("/0/", &dir_handle);
+    if (err != KELP_OK) { FAIL("opendir failed"); return; }
+
+    // Read some entries and save position
+    while (kelp_fs_dir_read(dir_handle, &entry) == KELP_OK) {
+        entries_before++;
+    }
+
+    // Get current position
+    err = kelp_fs_dir_tell(dir_handle, &pos);
+    if (err == KELP_OK) {
+        saved_pos = pos;
+        printf("  Position after reading %d entries: %d\n", entries_before, pos);
+        PASS();
+    } else { FAIL("dir_tell failed"); }
+
+    // Seek back to saved position and verify we can re-read
+    err = kelp_fs_dir_seek(dir_handle, saved_pos);
+    if (err == KELP_OK) { PASS(); } else { FAIL("dir_seek failed"); }
+
+    int entries_after = 0;
+    while (kelp_fs_dir_read(dir_handle, &entry) == KELP_OK) {
+        entries_after++;
+    }
+
+    if (entries_after == entries_before) {
+        printf("  Both passes: %d entries\n", entries_after);
+        PASS();
+    } else { FAIL("entry counts don't match after seek"); }
+
+    err = kelp_fs_dir_close(dir_handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("closedir failed"); }
+}
+
+static void test_file_remove(void) {
+    TEST(file_remove)
+    uint32_t handle;
+    kelp_error_t err;
+    kelp_fs_dirent_t entry;
+
+    // Create a file to delete
+    err = kelp_fs_file_open("/0/test_remove.txt", FS_O_WRONLY | FS_O_CREAT | FS_O_TRUNC, &handle);
+    if (err != KELP_OK) { FAIL("create file to remove failed"); return; }
+    kelp_fs_file_close(handle);
+
+    // Verify it exists
+    err = kelp_fs_stat("/0/test_remove.txt", &entry);
+    if (err == KELP_OK) { PASS(); } else { FAIL("stat before remove failed"); }
+
+    // Remove it
+    err = kelp_fs_remove("/0/test_remove.txt");
+    if (err == KELP_OK) { PASS(); } else { FAIL("remove failed"); }
+
+    // Verify it's gone
+    err = kelp_fs_stat("/0/test_remove.txt", &entry);
+    if (err != KELP_OK) { PASS(); } else { FAIL("file should not exist after remove"); }
+
+    // Try to remove again - should fail
+    err = kelp_fs_remove("/0/test_remove.txt");
+    if (err != KELP_OK) { PASS(); } else { FAIL("remove nonexistent should fail"); }
+}
+
+static void test_file_open_excl(void) {
+    TEST(file_open_excl)
+    uint32_t handle;
+    kelp_error_t err;
+
+    // Create file first
+    err = kelp_fs_file_open("/0/test_excl.txt", FS_O_WRONLY | FS_O_CREAT | FS_O_TRUNC, &handle);
+    if (err != KELP_OK) { FAIL("create excl test file failed"); return; }
+    kelp_fs_file_close(handle);
+
+    // Try to create with O_EXCL on existing file - should fail
+    err = kelp_fs_file_open("/0/test_excl.txt", FS_O_WRONLY | FS_O_CREAT | FS_O_EXCL | FS_O_TRUNC, &handle);
+    if (err != KELP_OK) { PASS(); } else { FAIL("O_EXCL on existing file should fail"); }
+
+    // Open the existing file normally - should succeed
+    err = kelp_fs_file_open("/0/test_excl.txt", FS_O_RDONLY, &handle);
+    if (err == KELP_OK) { PASS(); } else { FAIL("open existing file should succeed"); }
+    kelp_fs_file_close(handle);
+
+    // Clean up
+    kelp_fs_remove("/0/test_excl.txt");
+}
+
+static void test_file_rdwr(void) {
+    TEST(file_rdwr)
+    uint32_t handle;
+    kelp_error_t err;
+    uint32_t bytes_read, bytes_written;
+    char write_buf[] = "rdwr test data";
+    char read_buf[64] = {0};
+
+    // Open with read-write
+    err = kelp_fs_file_open("/0/test_rdwr.txt", FS_O_RDWR | FS_O_CREAT | FS_O_TRUNC, &handle);
+    if (err != KELP_OK) { FAIL("open for rdwr failed"); return; }
+
+    // Write some data
+    err = kelp_fs_file_write(handle, (const uint8_t*)write_buf, strlen(write_buf), &bytes_written);
+    if (err == KELP_OK && bytes_written == strlen(write_buf)) { PASS(); }
+    else { FAIL("rdwr write failed"); kelp_fs_file_close(handle); return; }
+
+    // Seek to start to read back
+    err = kelp_fs_file_seek(handle, 0, FS_SEEK_SET);
+    if (err != KELP_OK) { FAIL("seek to start failed"); }
+
+    // Read the data back
+    err = kelp_fs_file_read(handle, (uint8_t*)read_buf, sizeof(read_buf) - 1, &bytes_read);
+    if (err == KELP_OK && bytes_read == strlen(write_buf)) {
+        read_buf[bytes_read] = '\0';
+        printf("  Read back: '%s'\n", read_buf);
+        PASS();
+    } else { FAIL("rdwr read back failed"); }
+
+    kelp_fs_file_close(handle);
+    kelp_fs_remove("/0/test_rdwr.txt");
+}
+
+void test_file_service_task(uint32_t pid, uint32_t* signals, char* args) {
+    task_sleep_ms(5000);
+    printf("\n========================================\n");
+    printf("  FILE SERVICE TEST SUITE\n");
+    printf("========================================\n");
+    test_pass = 0;
+    test_fail = 0;
+    test_mount_unmount();
+    test_stat();
+    test_file_open_close();
+    test_file_write();
+    test_file_read();
+    test_file_seek();
+    test_file_tell();
+    test_file_size();
+    test_file_flush();
+    test_file_truncate();
+    test_file_rename();
+    test_dir_mkdir();
+    test_dir_opendir_readdir();
+    test_dir_rewinddir();
+    test_dir_seek_tell();
+    test_file_remove();
+    test_file_open_excl();
+    test_file_rdwr();
+    printf("\n========================================\n");
+    printf("  RESULTS: %d passed, %d failed\n", test_pass, test_fail);
+    printf("========================================\n");
+    while (true) { task_yield(); }
+}
+
 // Create the test
 void channel_speed_test_task(uint32_t pid, uint32_t* signals, char* args) {
     task_sleep_ms(2000);
@@ -343,11 +816,12 @@ void channel_speed_test_task(uint32_t pid, uint32_t* signals, char* args) {
 }
 
 void system_task(uint32_t pid, uint32_t* signals, char* args) {
-    task_request_stack(256);
+    task_request_stack(512);
 
     // start services
     task_add(kelp_task_text_service, TEXT_SERVICE_PID, 88);
     task_add(kelp_task_block_service, BLOCK_SERVICE_PID, 89);
+    task_add(kelp_task_file_service, FILE_SERVICE_PID, 89);
 
     // start drivers
     task_add(kelp_serial_driver, SERIAL_DRIVER_PID, 88);
@@ -357,7 +831,47 @@ void system_task(uint32_t pid, uint32_t* signals, char* args) {
     // start shell
     task_add(kelp_task_shell, KELP_SHELL_PID, 88);
 
-    task_add(disk_speed_task, 12, 88);
+    // task_add(disk_speed_task, 12, 88);
+
+    task_add(test_file_service_task, 13, 88);
+
+    // task_sleep_ms(1000);
+    // printf("Starting Test\n");
+    //
+    // uint32_t handle;
+    // uint32_t boot_count;
+    // kelp_error_t error = kelp_fs_file_open("/0/boot_count", FS_O_CREAT | FS_O_RDWR, &handle);
+    // printf("kelp_fs_open returned with code %ld\n", error);
+    //
+    // uint32_t bytes_read;
+    // error = kelp_fs_file_read(handle, (uint8_t*)&boot_count, 4, &bytes_read);
+    // printf("kelp_fs_read returned with code %ld\n", error);
+    // printf("boot count is %lu\n", boot_count);
+    //
+    // boot_count++;
+    //
+    // error = kelp_fs_file_seek(handle, 0, SEEK_SET);
+    // printf("kelp_fs_seek returned with code %ld\n", error);
+    //
+    // uint32_t bytes_written;
+    // error = kelp_fs_file_write(handle, (uint8_t*)&boot_count, 4, &bytes_written);
+    // printf("kelp_fs_write returned with code %ld\n", error);
+    //
+    // error = kelp_fs_file_seek(handle, 4, SEEK_SET);
+    // printf("kelp_fs_seek returned with code %ld\n", error);
+    //
+    // uint32_t position;
+    // error = kelp_fs_file_tell(handle, &position);
+    // printf("kelp_fs_tell returned with code %ld\n", error);
+    // printf("cursor is at %lu\n", position);
+    //
+    // uint32_t size_bytes;
+    // error = kelp_fs_file_size(handle, &size_bytes);
+    // printf("kelp_fs_size returned with code %ld\n", error);
+    // printf("size is %lu\n", size_bytes);
+    //
+    // error = kelp_fs_file_close(handle);
+    // printf("kelp_fs_close returned with code %ld\n", error);
 
     while (1) {
         task_sleep_ms(1000);

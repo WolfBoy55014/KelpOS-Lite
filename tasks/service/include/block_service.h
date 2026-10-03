@@ -31,6 +31,9 @@
 #define REASON_BLOCK_GET_DRIVER_PID 39487
 #define REASON_BLOCK_ERROR 4908
 
+#define KELP_BLOCK_CHECK_FOR_SERVICE_ERROR error = com_check_for_error_blocking(channel_id, &service_error); KELP_RETURN_ON_ERROR(error); KELP_RETURN_ON_ERROR(service_error);
+#define KELP_BLOCK_CHECK_FOR_DRIVER_ERROR error = com_check_for_error_blocking(driver_channel_id, &driver_error); KELP_RETURN_ON_ERROR(error); KELP_RETURN_ON_ERROR(driver_error);
+
 #include <stdint.h>
 
 #include "error_codes.h"
@@ -52,7 +55,7 @@ kelp_error_t kelp_block_get_block_count(uint8_t device_id, uint32_t* block_count
 
 kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_read, uint32_t start, uint32_t count);
 
-kelp_error_t kelp_block_write_bytes(uint8_t device_id, uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_written, uint32_t start, uint32_t count);
+kelp_error_t kelp_block_write_bytes(uint8_t device_id, const uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_written, uint32_t start, uint32_t count);
 
 void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args);
 

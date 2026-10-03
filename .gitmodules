@@ -7,3 +7,7 @@
 [submodule "tasks/drivers/sd_card"]
 	path = tasks/drivers/sd_card
 	url = https://github.com/WolfBoy55014/Kelp-SD-SDIO-SPI.git
+[submodule "lib/filesystems/littlefs/lfs2"]
+	path = lib/filesystems/littlefs/lfs2
+	url = https://github.com/littlefs-project/littlefs.git
+	branch = v2

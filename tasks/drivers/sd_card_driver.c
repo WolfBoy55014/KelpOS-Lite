@@ -67,7 +67,7 @@ static inline uint32_t get_uint32_be(const char* data) {
            ((uint8_t)data[2] << 8)  |  (uint8_t)data[3];
 }
 
-static kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char data[CHANNEL_SIZE], uint16_t size) {
+static kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char *data, uint16_t size) {
     if (size != 9) {
         return KELP_PROTOCOL;
     }
@@ -208,12 +208,13 @@ void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
                 if (sd_card_detect(sd_card_p) && !details->initialized) {
                     if (sd_card_p->init(sd_card_p)) {
                         uint8_t device_id;
-                        kelp_error_t error = kelp_block_mount_device(&device_id, 512, sd_card_p->get_num_sectors(sd_card_p));
+                        uint32_t block_count = sd_card_p->get_num_sectors(sd_card_p);
+                        kelp_error_t error = kelp_block_mount_device(&device_id, 512, block_count);
 
                         if (error == KELP_OK) {
                             device_id_2_sd_id[device_id] = id;
                             details->initialized = true;
-                            details->block_count = sd_card_p->get_num_sectors(sd_card_p);
+                            details->block_count = block_count;
                             details->size = details->block_count * 512;
                         }
                     }
@@ -281,18 +282,14 @@ void kelp_task_sd_card_driver(uint32_t pid, uint32_t* signals, char* args) {
                     case REASON_BLOCK_READ_BYTES:
                         // send the requested bytes
                         error = kelp_sd_handle_read_request(channel_id, data, size);
-                        if (error != KELP_OK) {
-                            com_send_int32_blocking(channel_id, error, REASON_BLOCK_ERROR);
-                        }
+                        com_send_error_blocking(channel_id, error);
                         break;
                     case REASON_BLOCK_WRITE_BYTES:
                         // write the provided bytes
                         error = kelp_sd_handle_write_request(channel_id, data, size);
-                        if (error != KELP_OK) {
-                            com_send_int32_blocking(channel_id, error, REASON_BLOCK_ERROR);
-                        }
+                        com_send_error_blocking(channel_id, error);
                         break;
-                    default: continue;
+                    default: break;
                     }
                 }
             }
