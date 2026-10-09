@@ -6,7 +6,7 @@
 add_library(littlefs INTERFACE)
 
 target_sources(littlefs INTERFACE
-        littlefs.c
+        lfs_kelp.c
         lfs2/lfs.c
         lfs2/lfs_util.c
 )

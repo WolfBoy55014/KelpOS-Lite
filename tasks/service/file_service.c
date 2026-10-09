@@ -11,7 +11,8 @@
 #include "channel.h"
 #include "com_channel_protocol.h"
 #include "kernel_config.h"
-#include "littlefs.h"
+#include "lfs_kelp.h"
+#include "lib/filesystems/fatfs/ff_kelp.h"
 #include "nullfs.h"
 #include "scheduler.h"
 
@@ -1366,7 +1367,8 @@ static kelp_error_t kelp_fs_handle_dir_tell_request(uint16_t channel_id, uint32_
 static void kelp_fs_init_plugins() {
     kelp_fs_manager.plugins[0] = &kelp_nullfs_plugin;
     kelp_fs_manager.plugins[1] = &kelp_lfsv2_plugin;
-    kelp_fs_manager.num_plugins = 2;
+    kelp_fs_manager.plugins[1] = &kelp_fatfs_plugin;
+    kelp_fs_manager.num_plugins = 3;
 }
 
 void kelp_task_file_service(uint32_t pid, uint32_t* signals, char* args) {

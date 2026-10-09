@@ -10,6 +10,7 @@ target_sources(fatfs INTERFACE
         ff.c
         ffsystem.c
         ffunicode.c
+        ff_kelp.c
 )
 
 target_include_directories(fatfs INTERFACE

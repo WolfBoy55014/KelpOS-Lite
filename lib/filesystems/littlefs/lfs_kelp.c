@@ -2,7 +2,7 @@
 // Created by wolfboy on 7/29/2026.
 //
 
-#include "littlefs.h"
+#include "lfs_kelp.h"
 
 #include "block_service.h"
 
@@ -155,7 +155,7 @@ static struct lfs_config* build_config(uint8_t device_id) {
     return cfg;
 }
 
-bool kelp_lfsv2_probe(uint8_t device_id) {
+static bool kelp_lfsv2_probe(uint8_t device_id) {
     // read the superblock of littlefs v2
 
     uint32_t block_size;

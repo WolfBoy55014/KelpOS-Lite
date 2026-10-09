@@ -11,8 +11,9 @@
 #include "include/diskio.h"
 
 /* Example: Declarations of the platform and disk functions in the project */
-#include "platform.h"
-#include "storage.h"
+#include <string.h>
+
+#include "block_service.h"
 
 /* Example: Mapping of physical drive number for each drive */
 #define DEV_FLASH	0	/* Map FTL to physical drive 0 */
@@ -28,32 +29,15 @@ DSTATUS disk_status (
 	BYTE pdrv		/* Physical drive nmuber to identify the drive */
 )
 {
-	DSTATUS stat;
-	int result;
 
-	switch (pdrv) {
-	case DEV_RAM :
-		result = RAM_disk_status();
+	uint32_t block_count;
+	kelp_error_t error = kelp_block_get_block_count(pdrv, &block_count);
 
-		// translate the reslut code here
-
-		return stat;
-
-	case DEV_MMC :
-		result = MMC_disk_status();
-
-		// translate the reslut code here
-
-		return stat;
-
-	case DEV_USB :
-		result = USB_disk_status();
-
-		// translate the reslut code here
-
-		return stat;
+	if (error != KELP_OK) {
+		return STA_NOINIT;
 	}
-	return STA_NOINIT;
+
+	return 0;
 }
 
 
@@ -66,32 +50,7 @@ DSTATUS disk_initialize (
 	BYTE pdrv				/* Physical drive nmuber to identify the drive */
 )
 {
-	DSTATUS stat;
-	int result;
-
-	switch (pdrv) {
-	case DEV_RAM :
-		result = RAM_disk_initialize();
-
-		// translate the reslut code here
-
-		return stat;
-
-	case DEV_MMC :
-		result = MMC_disk_initialize();
-
-		// translate the reslut code here
-
-		return stat;
-
-	case DEV_USB :
-		result = USB_disk_initialize();
-
-		// translate the reslut code here
-
-		return stat;
-	}
-	return STA_NOINIT;
+	return 0;
 }
 
 
@@ -107,39 +66,25 @@ DRESULT disk_read (
 	UINT count		/* Number of sectors to read */
 )
 {
-	DRESULT res;
-	int result;
+	uint32_t block_size;
+	kelp_error_t error = kelp_block_get_block_size(pdrv, &block_size);
 
-	switch (pdrv) {
-	case DEV_RAM :
-		// translate the arguments here
-
-		result = RAM_disk_read(buff, sector, count);
-
-		// translate the reslut code here
-
-		return res;
-
-	case DEV_MMC :
-		// translate the arguments here
-
-		result = MMC_disk_read(buff, sector, count);
-
-		// translate the reslut code here
-
-		return res;
-
-	case DEV_USB :
-		// translate the arguments here
-
-		result = USB_disk_read(buff, sector, count);
-
-		// translate the reslut code here
-
-		return res;
+	if (error != KELP_OK) {
+		return RES_PARERR;
 	}
 
-	return RES_PARERR;
+	uint32_t bytes_read;
+	error = kelp_block_read_bytes(pdrv, buff, block_size * count, &bytes_read, sector, count);
+
+	if (bytes_read != block_size * count) {
+		return RES_ERROR;
+	}
+
+	if (error != KELP_OK) {
+		return RES_ERROR;
+	}
+
+	return RES_OK;
 }
 
 
@@ -157,39 +102,25 @@ DRESULT disk_write (
 	UINT count			/* Number of sectors to write */
 )
 {
-	DRESULT res;
-	int result;
+	uint32_t block_size;
+	kelp_error_t error = kelp_block_get_block_size(pdrv, &block_size);
 
-	switch (pdrv) {
-	case DEV_RAM :
-		// translate the arguments here
-
-		result = RAM_disk_write(buff, sector, count);
-
-		// translate the reslut code here
-
-		return res;
-
-	case DEV_MMC :
-		// translate the arguments here
-
-		result = MMC_disk_write(buff, sector, count);
-
-		// translate the reslut code here
-
-		return res;
-
-	case DEV_USB :
-		// translate the arguments here
-
-		result = USB_disk_write(buff, sector, count);
-
-		// translate the reslut code here
-
-		return res;
+	if (error != KELP_OK) {
+		return RES_PARERR;
 	}
 
-	return RES_PARERR;
+	uint32_t bytes_written;
+	error = kelp_block_write_bytes(pdrv, buff, block_size * count, &bytes_written, sector, count);
+
+	if (bytes_written != block_size * count) {
+		return RES_ERROR;
+	}
+
+	if (error != KELP_OK) {
+		return RES_ERROR;
+	}
+
+	return RES_OK;
 }
 
 #endif
@@ -205,29 +136,41 @@ DRESULT disk_ioctl (
 	void *buff		/* Buffer to send/receive control data */
 )
 {
-	DRESULT res;
-	int result;
+	// TODO: if we ever add cache, make sure sync is implemented
 
-	switch (pdrv) {
-	case DEV_RAM :
+	switch (cmd) {
+		kelp_error_t error;
 
-		// Process of the command for the RAM drive
+		case GET_SECTOR_SIZE:
+			uint32_t sector_size;
+			error = kelp_block_get_block_size(pdrv, &sector_size);
+			if (error != KELP_OK) {
+				return RES_ERROR;
+			}
+			memcpy(buff, (WORD*)&sector_size, sizeof(WORD));
+			break;
 
-		return res;
+		case GET_SECTOR_COUNT:
+			uint32_t sector_count;
+			error = kelp_block_get_block_count(pdrv, &sector_count);
+			if (error != KELP_OK) {
+				return RES_ERROR;
+			}
+			memcpy(buff, (WORD*)&sector_count, sizeof(WORD));
+			break;
 
-	case DEV_MMC :
+		case GET_BLOCK_SIZE:
+			uint32_t block_size;
+			error = kelp_block_get_block_size(pdrv, &block_size);
+			if (error != KELP_OK) {
+				return RES_ERROR;
+			}
+			memcpy(buff, (WORD*)&block_size, sizeof(WORD));
+			break;
 
-		// Process of the command for the MMC/SD card
 
-		return res;
-
-	case DEV_USB :
-
-		// Process of the command the USB drive
-
-		return res;
 	}
 
-	return RES_PARERR;
+	return RES_OK;
 }
 

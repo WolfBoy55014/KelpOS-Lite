@@ -2,20 +2,15 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.1.1/lib/btstack" vcs="Git" />
-    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.1.1/lib/cyw43-driver" vcs="Git" />
-    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.1.1/lib/lwip" vcs="Git" />
-    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.1.1/lib/mbedtls" vcs="Git" />
-    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.1.1/lib/tinyusb" vcs="Git" />
-    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/btstack" vcs="Git" />
-    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/cyw43-driver" vcs="Git" />
-    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/lwip" vcs="Git" />
-    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/mbedtls" vcs="Git" />
-    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/tinyusb" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/kernel" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/lib/filesystems/littlefs/lfs2" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/tasks/drivers/sd_card" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/tasks/shell/microshell" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/tasks/shell/microshell/tests/Unity" vcs="Git" />
+    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/btstack" vcs="Git" />
+    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/cyw43-driver" vcs="Git" />
+    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/lwip" vcs="Git" />
+    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/mbedtls" vcs="Git" />
+    <mapping directory="$USER_HOME$/.pico-sdk/sdk/2.2.0/lib/tinyusb" vcs="Git" />
   </component>
 </project>

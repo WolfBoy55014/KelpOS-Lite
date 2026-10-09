@@ -10,8 +10,8 @@ add_subdirectory(fatfs/)
 add_library(lib_filesystems INTERFACE)
 
 target_link_libraries(lib_filesystems INTERFACE
-        littlefs
         fatfs
+        littlefs
         nullfs
         pico_stdlib
 )
