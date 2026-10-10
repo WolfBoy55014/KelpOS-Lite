@@ -1367,7 +1367,7 @@ static kelp_error_t kelp_fs_handle_dir_tell_request(uint16_t channel_id, uint32_
 static void kelp_fs_init_plugins() {
     kelp_fs_manager.plugins[0] = &kelp_nullfs_plugin;
     kelp_fs_manager.plugins[1] = &kelp_lfsv2_plugin;
-    kelp_fs_manager.plugins[1] = &kelp_fatfs_plugin;
+    kelp_fs_manager.plugins[2] = &kelp_fatfs_plugin;
     kelp_fs_manager.num_plugins = 3;
 }
 
