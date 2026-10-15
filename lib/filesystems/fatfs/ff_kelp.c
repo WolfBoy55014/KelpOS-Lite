@@ -5,10 +5,26 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "file_service.h"
 #include "ff.h"
 #include "ffconf.h"
+#include "pico/types.h"
+
+static int translate_flags(uint32_t flags) {
+    int ff_flags = 0;
+    if (flags & FS_O_RDONLY)  ff_flags |= FA_READ;
+    if (flags & FS_O_WRONLY)  ff_flags |= FA_WRITE;
+    if (flags & FS_O_RDWR)    ff_flags |= (FA_READ | FA_WRITE);
+
+    if ((flags & FS_O_CREAT) && (flags & FS_O_EXCL))    ff_flags |= FA_CREATE_NEW;
+    if ((flags & FS_O_CREAT) && (flags & FS_O_TRUNC))   ff_flags |= FA_CREATE_ALWAYS;
+    if ((flags & FS_O_CREAT) && (flags & FS_O_APPEND))  ff_flags |= FA_OPEN_APPEND;
+    if (flags & FS_O_CREAT)                             ff_flags |= FA_OPEN_ALWAYS;
+    if (!(flags & FS_O_CREAT))                          ff_flags |= FA_OPEN_EXISTING;
+    return ff_flags;
+}
 
 static bool kelp_fatfs_probe(uint8_t device_id) {
     FATFS* fatfs = malloc(sizeof(FATFS));
@@ -49,56 +65,50 @@ kelp_error_t kelp_fatfs_unmount(kelp_fs_mount_t* mount) {
     return KELP_OK;
 }
 
-/*
 kelp_error_t kelp_fatfs_stat(kelp_fs_mount_t* mount, const char* path,
                              kelp_fs_dirent_t* out) {
-    struct lfs* lfs = mount->context;
-    struct lfs_info info;
+    FATFS* fatfs = mount->context;
+    FILINFO info;
 
-    int error = lfs_stat(lfs, path, &info);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
-        return error;
+    FRESULT error = f_stat(fatfs, path, &info);
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
+        return error; // TODO: Make error code conversions
     }
 
-    switch (info.type) {
-    case LFS_TYPE_REG:
-        out->type = FS_DT_FILE;
-        break;
-    case LFS_TYPE_DIR:
+    if (info.fattrib & AM_DIR) {
         out->type = FS_DT_DIR;
-        break;
-    default:
-        out->type = FS_DT_UNKNOWN;
+    } else {
+        out->type = FS_DT_FILE;
     }
 
-    out->size = info.size;
+    out->size = info.fsize;
     out->modified = 0;
 
-    if (strlen(info.name) > FILE_SERVICE_MAX_NAME) {
+    if (strlen(info.fname) >= FILE_SERVICE_MAX_NAME) {
         return KELP_TOO_BIG;
     }
 
-    strncpy(out->name, info.name, FILE_SERVICE_MAX_NAME + 1);
+    strncpy(out->name, info.fname, FILE_SERVICE_MAX_NAME);
 
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_rename(kelp_fs_mount_t* mount, const char* old_path, const char* new_path) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_rename(lfs, old_path, new_path);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+    FATFS* fatfs = mount->context;
+    FRESULT error = f_rename(fatfs, old_path, new_path);
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
         return error;
     }
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_remove(kelp_fs_mount_t* mount, const char* path) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_remove(lfs, path);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+    FATFS* fatfs = mount->context;
+    FRESULT error = f_unlink(fatfs, path);
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
         return error;
     }
     return KELP_OK;
@@ -106,19 +116,19 @@ kelp_error_t kelp_fatfs_remove(kelp_fs_mount_t* mount, const char* path) {
 
 kelp_error_t kelp_fatfs_file_open(kelp_fs_mount_t* mount, const char* path,
                                   uint32_t flags, void** handle) {
-    lfs_file_t* file = malloc(sizeof(lfs_file_t));
+    FIL* file = malloc(sizeof(FIL));
     if (file == NULL) {
-        printf("LittleFS V2 failed to malloc memory at %d\n", __LINE__);
+        printf("FATFS failed to malloc memory at %d\n", __LINE__);
         return KELP_MEMORY;
     }
 
-    struct lfs* lfs = mount->context;
+    FATFS* fatfs = mount->context;
 
-    int lfs_flags = translate_flags(flags);
+    BYTE ff_flags = translate_flags(flags);
 
-    int error = lfs_file_open(lfs, file, path, lfs_flags);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+    FRESULT error = f_open(fatfs, file, path, ff_flags);
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
         free(file);
         return error;
     }
@@ -128,9 +138,9 @@ kelp_error_t kelp_fatfs_file_open(kelp_fs_mount_t* mount, const char* path,
 }
 
 kelp_error_t kelp_fatfs_file_close(kelp_fs_mount_t* mount, void* handle) {
-    int error = lfs_file_close(mount->context, handle);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+    FRESULT error = f_close(handle);
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
         return error;
     }
     free(handle);
@@ -139,35 +149,59 @@ kelp_error_t kelp_fatfs_file_close(kelp_fs_mount_t* mount, void* handle) {
 
 kelp_error_t kelp_fatfs_file_read(kelp_fs_mount_t* mount, void* handle, uint8_t* buf, uint32_t len,
                                   uint32_t* bytes_read) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_file_read(lfs, handle, buf, len);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+    uint br;
+    FRESULT error = f_read(handle, buf, len, &br);
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
         return error;
     }
 
-    *bytes_read = (uint32_t)error;
+    *bytes_read = (uint32_t)br;
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_file_write(kelp_fs_mount_t* mount, void* handle, const uint8_t* buf, uint32_t len,
                                    uint32_t* bytes_written) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_file_write(lfs, handle, buf, len);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+    uint bw;
+    FRESULT error = f_write(handle, buf, len, &bw);
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
         return error;
     }
 
-    *bytes_written = (uint32_t)error;
+    *bytes_written = (uint32_t)bw;
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_file_seek(kelp_fs_mount_t* mount, void* handle, int32_t offset, kelp_fs_seek_t whence) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_file_seek(lfs, handle, offset, whence);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+    FRESULT error = FR_OK;
+    switch (whence) {
+        case FS_SEEK_SET:
+            if (offset < 0) {
+                return KELP_PROTOCOL;
+            }
+            error = f_lseek(handle, offset);
+            break;
+        case FS_SEEK_CUR:
+            if (handle == NULL) return KELP_INVALID_ID;
+            FSIZE_t current_pos = f_tell((FIL*)handle);
+            if (((int32_t)current_pos + offset) < 0) {
+                return KELP_PROTOCOL;
+            }
+            error = f_lseek(handle, current_pos + offset);
+            break;
+        case FS_SEEK_END:
+            if (handle == NULL) return KELP_INVALID_ID;
+            FSIZE_t size = f_size((FIL*)handle);
+            if (((int32_t)size + offset) < 0) {
+                return KELP_PROTOCOL;
+            }
+            error = f_lseek(handle, size + offset);
+            break;
+    }
+
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
         return error;
     }
 
@@ -175,68 +209,67 @@ kelp_error_t kelp_fatfs_file_seek(kelp_fs_mount_t* mount, void* handle, int32_t 
 }
 
 kelp_error_t kelp_fatfs_file_tell(kelp_fs_mount_t* mount, void* handle, uint32_t* pos) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_file_tell(lfs, handle);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
-        return error;
-    }
+    if (handle == NULL) return KELP_INVALID_ID;
+    FSIZE_t current_pos = f_tell((FIL*)handle);
 
-    *pos = (uint32_t)error;
+    *pos = (uint32_t)current_pos;
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_file_size(kelp_fs_mount_t* mount, void* handle, uint32_t* size) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_file_size(lfs, handle);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
-        return error;
-    }
+    if (handle == NULL) return KELP_INVALID_ID;
+    FSIZE_t file_size = f_size((FIL*)handle);
 
-    *size = (uint32_t)error;
+    *size = (uint32_t)file_size;
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_file_flush(kelp_fs_mount_t* mount, void* handle) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_file_sync(lfs, handle);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+    FRESULT error = f_sync(handle);
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
         return error;
     }
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_file_truncate(kelp_fs_mount_t* mount, void* handle, uint32_t size) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_file_truncate(lfs, handle, size);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+
+    FSIZE_t current_pos = f_tell((FIL*)handle);
+    FRESULT error = f_lseek(handle, size);
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
         return error;
     }
+    error = f_truncate(handle);
+    if (error != FR_OK) {
+        f_lseek(handle, current_pos);
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
+        return error;
+    }
+    f_lseek(handle, current_pos);
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_dir_mkdir(kelp_fs_mount_t* mount, const char* path) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_mkdir(lfs, path);
-    if (error < 0) {
-        printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
+    FATFS* fatfs = mount->context;
+    FRESULT error = f_mkdir(fatfs, path);
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
         return error;
     }
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_dir_open(kelp_fs_mount_t* mount, const char* path, void** dir_handle) {
-    lfs_dir_t* dir = malloc(sizeof(lfs_dir_t));
+    DIR* dir = malloc(sizeof(DIR));
     if (dir == NULL) {
         return KELP_MEMORY;
     }
 
-    struct lfs* lfs = mount->context;
-    int error = lfs_dir_open(lfs, dir, path);
-    if (error < 0) {
+    FATFS* fatfs = mount->context;
+    FRESULT error = f_opendir(fatfs, dir, path);
+    if (error != FR_OK) {
         free(dir);
         return error;
     }
@@ -246,9 +279,8 @@ kelp_error_t kelp_fatfs_dir_open(kelp_fs_mount_t* mount, const char* path, void*
 }
 
 kelp_error_t kelp_fatfs_dir_close(kelp_fs_mount_t* mount, void* dir_handle) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_dir_close(lfs, dir_handle);
-    if (error < 0) {
+    FRESULT error = f_closedir(dir_handle);
+    if (error != FR_OK) {
         return error;
     }
     free(dir_handle);
@@ -256,60 +288,61 @@ kelp_error_t kelp_fatfs_dir_close(kelp_fs_mount_t* mount, void* dir_handle) {
 }
 
 kelp_error_t kelp_fatfs_dir_read(kelp_fs_mount_t* mount, void* dir_handle, kelp_fs_dirent_t* entry) {
-    struct lfs* lfs = mount->context;
-
-    struct lfs_info info;
-    int error = lfs_dir_read(lfs, dir_handle, &info);
-    if (error <= 0) {
+    FILINFO info;
+    FRESULT error = f_readdir(dir_handle, &info);
+    if (error != FR_OK) {
         // error=0 means EOF, error<0 is actual error
-        return (error < 0) ? error : 1; // return 1 for EOF
+        // TODO: figure out how FatFS does EOF
+        return (error < 0) ? error : KELP_NO_EXIST;
     }
 
-    entry->type = (info.type == LFS_TYPE_REG) ? FS_DT_FILE : FS_DT_DIR;
-    entry->size = info.size;
+    entry->type = (info.fattrib & AM_DIR) ? FS_DT_DIR : FS_DT_FILE;
+    entry->size = info.fsize;
     entry->modified = 0;
-    strncpy(entry->name, info.name, FILE_SERVICE_MAX_NAME);
+    strncpy(entry->name, info.fname, FILE_SERVICE_MAX_NAME);
     entry->name[FILE_SERVICE_MAX_NAME] = '\0';
 
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_dir_rewind(kelp_fs_mount_t* mount, void* dir_handle) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_dir_rewind(lfs, dir_handle);
-    if (error < 0) {
+    FRESULT error = f_rewinddir(dir_handle);
+    if (error != FR_OK) {
         return error;
     }
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_dir_seek(kelp_fs_mount_t* mount, void* dir_handle, int32_t offset) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_dir_seek(lfs, dir_handle, offset);
-    if (error < 0) {
+    DIR* handle = dir_handle;
+    if (!dir_handle) return KELP_NO_EXIST;
+    if (((int64_t)handle->dptr + offset) < 0) {
+        return KELP_PROTOCOL;
+    }
+    uint32_t new_pos = handle->dptr + offset;
+
+    FRESULT error = f_dir_sdi(handle, new_pos);
+
+    if (error != FR_OK) {
         return error;
     }
+
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_dir_tell(kelp_fs_mount_t* mount, void* dir_handle, int32_t *pos) {
-    struct lfs* lfs = mount->context;
-    int error = lfs_dir_tell(lfs, dir_handle);
-    if (error < 0) {
-        return error;
-    }
-    *pos = error;
+    DIR* handle = dir_handle;
+    if (!dir_handle) return KELP_NO_EXIST;
+    *pos = handle->dptr;
     return KELP_OK;
 }
-
-*/
 
 const struct kelp_fs_backend_plugin kelp_fatfs_plugin = {
     .name = "fatfs",
     .probe = kelp_fatfs_probe,
     .mount = kelp_fatfs_mount,
     .unmount = kelp_fatfs_unmount,
-    // .stat = kelp_fatfs_stat,
+    .stat = kelp_fatfs_stat,
     // .rename = kelp_fatfs_rename,
     // .remove = kelp_fatfs_remove,
     //

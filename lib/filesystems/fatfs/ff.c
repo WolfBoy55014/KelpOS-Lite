@@ -1710,7 +1710,7 @@ static FRESULT dir_clear (	/* Returns FR_OK or FR_DISK_ERR */
 /* Directory handling - Set directory index                              */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT dir_sdi (	/* FR_OK(0):succeeded, !=0:error */
+FRESULT f_dir_sdi (	/* FR_OK(0):succeeded, !=0:error */
 	DIR* dp,		/* Pointer to directory object */
 	DWORD ofs		/* Offset of directory table */
 )
@@ -1829,7 +1829,7 @@ static FRESULT dir_alloc (	/* FR_OK(0):succeeded, !=0:error */
 	FATFS *fs = dp->obj.fs;
 
 
-	res = dir_sdi(dp, 0);
+	res = f_dir_sdi(dp, 0);
 	if (res == FR_OK) {
 		n = 0;
 		do {
@@ -2236,7 +2236,7 @@ static FRESULT load_obj_xdir (
 	dp->obj.n_frag = 0;
 	dp->blk_ofs = obj->c_ofs;
 
-	res = dir_sdi(dp, dp->blk_ofs);	/* Goto object's entry block */
+	res = f_dir_sdi(dp, dp->blk_ofs);	/* Goto object's entry block */
 	if (res == FR_OK) {
 		res = load_xdir(dp);		/* Load the object's entry block */
 	}
@@ -2263,7 +2263,7 @@ static FRESULT store_xdir (
 
 	/* Store the entry set to the directory */
 	nent = dirb[XDIR_NumSec] + 1;	/* Number of entries */
-	res = dir_sdi(dp, dp->blk_ofs);	/* Top of the entry set */
+	res = f_dir_sdi(dp, dp->blk_ofs);	/* Top of the entry set */
 	while (res == FR_OK) {
 		/* Set an entry to the directory */
 		res = move_window(dp->obj.fs, dp->sect);
@@ -2419,7 +2419,7 @@ static FRESULT dir_find (	/* FR_OK(0):succeeded, !=0:error */
 	BYTE attr, ord, sum;
 #endif
 
-	res = dir_sdi(dp, 0);			/* Rewind directory object */
+	res = f_dir_sdi(dp, 0);			/* Rewind directory object */
 	if (res != FR_OK) return res;
 #if FF_FS_EXFAT
 	if (fs->fs_type == FS_EXFAT) {	/* On the exFAT volume */
@@ -2559,7 +2559,7 @@ static FRESULT dir_register (	/* FR_OK:succeeded, FR_DENIED:no free entry or too
 	n_ent = (sn[NSFLAG] & NS_LFN) ? (len + 12) / 13 + 1 : 1;	/* Number of entries to allocate */
 	res = dir_alloc(dp, n_ent);		/* Allocate entries */
 	if (res == FR_OK && --n_ent) {	/* Set LFN entry if needed */
-		res = dir_sdi(dp, dp->dptr - n_ent * SZDIRE);
+		res = f_dir_sdi(dp, dp->dptr - n_ent * SZDIRE);
 		if (res == FR_OK) {
 			BYTE sum = sum_sfn(dp->fn);	/* Checksum value of the SFN tied to the LFN */
 
@@ -2612,7 +2612,7 @@ static FRESULT dir_remove (	/* FR_OK:Succeeded, FR_DISK_ERR:A disk error */
 #if FF_USE_LFN		/* LFN configuration */
 	DWORD last = dp->dptr;
 
-	res = (dp->blk_ofs == 0xFFFFFFFF) ? FR_OK : dir_sdi(dp, dp->blk_ofs);	/* Goto top of the entry block if LFN is exist */
+	res = (dp->blk_ofs == 0xFFFFFFFF) ? FR_OK : f_dir_sdi(dp, dp->blk_ofs);	/* Goto top of the entry block if LFN is exist */
 	if (res == FR_OK) {
 		do {
 			res = move_window(fs, dp->sect);
@@ -3140,7 +3140,7 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 
 	if ((UINT)*path < ' ') {				/* Null path name is the origin directory itself */
 		dp->fn[NSFLAG] = NS_NONAME;
-		res = dir_sdi(dp, 0);
+		res = f_dir_sdi(dp, 0);
 
 	} else {								/* Follow path */
 		for (;;) {
@@ -4719,7 +4719,7 @@ FRESULT f_opendir (
 			}
 			if (res == FR_OK) {
 				dp->obj.id = fs->id;		/* Set current volume mount ID */
-				res = dir_sdi(dp, 0);		/* Rewind directory */
+				res = f_dir_sdi(dp, 0);		/* Rewind directory */
 #if FF_FS_LOCK
 				if (res == FR_OK) {
 					if (dp->obj.sclust) {	/* Is this a sub-directory? */
@@ -4790,7 +4790,7 @@ FRESULT f_readdir (
 	res = validate(&dp->obj, &fs);	/* Check validity of the directory object */
 	if (res == FR_OK) {
 		if (!fno) {
-			res = dir_sdi(dp, 0);		/* Rewind the directory object */
+			res = f_dir_sdi(dp, 0);		/* Rewind the directory object */
 		} else {
 			INIT_NAMEBUFF(fs);
 			fno->fname[0] = 0;				/* Clear file information */
@@ -5112,7 +5112,7 @@ FRESULT f_unlink (
 						sdj.obj.stat = obj.stat;
 					}
 #endif
-					res = dir_sdi(&sdj, 0);
+					res = f_dir_sdi(&sdj, 0);
 					if (res == FR_OK) {
 						res = DIR_READ_FILE(&sdj);			/* Check if the sub-directory is empty */
 						if (res == FR_OK) res = FR_DENIED;	/* Not empty? */
@@ -5488,7 +5488,7 @@ FRESULT f_getlabel (
 	/* Get volume label */
 	if (res == FR_OK && label) {
 		dj.obj.fs = fs; dj.obj.sclust = 0;	/* Open root directory */
-		res = dir_sdi(&dj, 0);
+		res = f_dir_sdi(&dj, 0);
 		if (res == FR_OK) {
 		 	res = DIR_READ_LABEL(&dj);		/* Find a volume label entry */
 		 	if (res == FR_OK) {
@@ -5642,7 +5642,7 @@ FRESULT f_setlabel (
 
 	/* Set volume label */
 	dj.obj.fs = fs; dj.obj.sclust = 0;	/* Open root directory */
-	res = dir_sdi(&dj, 0);
+	res = f_dir_sdi(&dj, 0);
 	if (res == FR_OK) {
 		res = DIR_READ_LABEL(&dj);	/* Get volume label entry */
 		if (res == FR_OK) {

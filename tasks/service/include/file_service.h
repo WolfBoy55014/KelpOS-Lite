@@ -93,7 +93,7 @@ typedef enum {
 
 /* Directory entry — returned by readdir */
 typedef struct {
-    char name[FILE_SERVICE_MAX_NAME + 1]; // max filename length (FS_MAX_NAME)
+    char name[FILE_SERVICE_MAX_NAME]; // max filename length (FS_MAX_NAME)
     kelp_fs_dtype_t type;
     uint32_t size;        // file size, 0 for dirs
     uint32_t modified;    // timestamp

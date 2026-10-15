@@ -320,22 +320,23 @@ typedef enum {
 /* FatFs Module Application Interface                           */
 /*--------------------------------------------------------------*/
 
-FRESULT f_open (FATFS* fs, FIL* fp, const TCHAR* path, BYTE mode);				/* Open or create a file */
+FRESULT f_open (FATFS* fs, FIL* fp, const TCHAR* path, BYTE mode);	/* Open or create a file */
 FRESULT f_close (FIL* fp);											/* Close an open file object */
 FRESULT f_read (FIL* fp, void* buff, UINT btr, UINT* br);			/* Read data from the file */
 FRESULT f_write (FIL* fp, const void* buff, UINT btw, UINT* bw);	/* Write data to the file */
 FRESULT f_lseek (FIL* fp, FSIZE_t ofs);								/* Move file pointer of the file object */
 FRESULT f_truncate (FIL* fp);										/* Truncate the file */
 FRESULT f_sync (FIL* fp);											/* Flush cached data of the writing file */
-FRESULT f_opendir (FATFS* fs, DIR* dp, const TCHAR* path);						/* Open a directory */
+FRESULT f_opendir (FATFS* fs, DIR* dp, const TCHAR* path);			/* Open a directory */
 FRESULT f_closedir (DIR* dp);										/* Close an open directory */
 FRESULT f_readdir (DIR* dp, FILINFO* fno);							/* Read a directory item */
+FRESULT f_dir_sdi (DIR* dp, DWORD ofs);								/* Set directory index */
 FRESULT f_findfirst (DIR* dp, FILINFO* fno, const TCHAR* path, const TCHAR* pattern);	/* Find first file */
 FRESULT f_findnext (DIR* dp, FILINFO* fno);							/* Find next file */
-FRESULT f_mkdir (FATFS* fs, const TCHAR* path);								/* Create a sub directory */
-FRESULT f_unlink (FATFS* fs, const TCHAR* path);								/* Delete an existing file or directory */
+FRESULT f_mkdir (FATFS* fs, const TCHAR* path);						/* Create a sub directory */
+FRESULT f_unlink (FATFS* fs, const TCHAR* path);					/* Delete an existing file or directory */
 FRESULT f_rename (FATFS* fs, const TCHAR* path_old, const TCHAR* path_new);	/* Rename/Move a file or directory */
-FRESULT f_stat (FATFS* fs, const TCHAR* path, FILINFO* fno);					/* Get file status */
+FRESULT f_stat (FATFS* fs, const TCHAR* path, FILINFO* fno);		/* Get file status */
 FRESULT f_chmod (const TCHAR* path, BYTE attr, BYTE mask);			/* Change attribute of a file/dir */
 FRESULT f_utime (const TCHAR* path, const FILINFO* fno);			/* Change timestamp of a file/dir */
 FRESULT f_chdir (const TCHAR* path);								/* Change current directory */

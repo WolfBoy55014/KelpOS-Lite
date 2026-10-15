@@ -308,11 +308,11 @@ kelp_error_t kelp_lfsv2_stat(kelp_fs_mount_t* mount, const char* path,
     out->size = info.size;
     out->modified = 0;
 
-    if (strlen(info.name) > FILE_SERVICE_MAX_NAME) {
+    if (strlen(info.name) >= FILE_SERVICE_MAX_NAME) {
         return KELP_TOO_BIG;
     }
 
-    strncpy(out->name, info.name, FILE_SERVICE_MAX_NAME + 1);
+    strncpy(out->name, info.name, FILE_SERVICE_MAX_NAME);
 
     return KELP_OK;
 }
@@ -495,14 +495,14 @@ kelp_error_t kelp_lfsv2_dir_read(kelp_fs_mount_t* mount, void* dir_handle, kelp_
     int error = lfs_dir_read(lfs, dir_handle, &info);
     if (error <= 0) {
         // error=0 means EOF, error<0 is actual error
-        return (error < 0) ? error : 1; // return 1 for EOF
+        return (error < 0) ? error : KELP_NO_EXIST; // return 1 for EOF
     }
 
     entry->type = (info.type == LFS_TYPE_REG) ? FS_DT_FILE : FS_DT_DIR;
     entry->size = info.size;
     entry->modified = 0;
     strncpy(entry->name, info.name, FILE_SERVICE_MAX_NAME);
-    entry->name[FILE_SERVICE_MAX_NAME] = '\0';
+    entry->name[FILE_SERVICE_MAX_NAME - 1] = '\0';
 
     return KELP_OK;
 }
