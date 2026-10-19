@@ -662,6 +662,14 @@ static void test_dir_seek_tell(void) {
     err = kelp_fs_dir_open("/0/", &dir_handle);
     if (err != KELP_OK) { FAIL("opendir failed"); return; }
 
+    // Get current position
+    err = kelp_fs_dir_tell(dir_handle, &pos);
+    if (err == KELP_OK) {
+        saved_pos = pos;
+        printf("  Position after reading %d entries: %d\n", entries_before, pos);
+        PASS();
+    } else { FAIL("dir_tell failed"); }
+
     // Read some entries and save position
     while (kelp_fs_dir_read(dir_handle, &entry) == KELP_OK) {
         entries_before++;
@@ -670,7 +678,6 @@ static void test_dir_seek_tell(void) {
     // Get current position
     err = kelp_fs_dir_tell(dir_handle, &pos);
     if (err == KELP_OK) {
-        saved_pos = pos;
         printf("  Position after reading %d entries: %d\n", entries_before, pos);
         PASS();
     } else { FAIL("dir_tell failed"); }
@@ -687,7 +694,10 @@ static void test_dir_seek_tell(void) {
     if (entries_after == entries_before) {
         printf("  Both passes: %d entries\n", entries_after);
         PASS();
-    } else { FAIL("entry counts don't match after seek"); }
+    } else { 
+        FAIL("entry counts don't match after seek");
+        printf("(old: %d, new: %d)\n", entries_before, entries_after);
+    }
 
     err = kelp_fs_dir_close(dir_handle);
     if (err == KELP_OK) { PASS(); } else { FAIL("closedir failed"); }

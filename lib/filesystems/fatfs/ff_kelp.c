@@ -291,16 +291,18 @@ kelp_error_t kelp_fatfs_dir_read(kelp_fs_mount_t* mount, void* dir_handle, kelp_
     FILINFO info;
     FRESULT error = f_readdir(dir_handle, &info);
     if (error != FR_OK) {
-        // error=0 means EOF, error<0 is actual error
-        // TODO: figure out how FatFS does EOF
-        return (error < 0) ? error : KELP_NO_EXIST;
+        return error;
+    }
+
+    if (info.fname[0] == '\0') {
+        return KELP_NO_EXIST;
     }
 
     entry->type = (info.fattrib & AM_DIR) ? FS_DT_DIR : FS_DT_FILE;
     entry->size = info.fsize;
     entry->modified = 0;
     strncpy(entry->name, info.fname, FILE_SERVICE_MAX_NAME);
-    entry->name[FILE_SERVICE_MAX_NAME] = '\0';
+    entry->name[FILE_SERVICE_MAX_NAME - 1] = '\0';
 
     return KELP_OK;
 }
@@ -316,12 +318,8 @@ kelp_error_t kelp_fatfs_dir_rewind(kelp_fs_mount_t* mount, void* dir_handle) {
 kelp_error_t kelp_fatfs_dir_seek(kelp_fs_mount_t* mount, void* dir_handle, int32_t offset) {
     DIR* handle = dir_handle;
     if (!dir_handle) return KELP_NO_EXIST;
-    if (((int64_t)handle->dptr + offset) < 0) {
-        return KELP_PROTOCOL;
-    }
-    uint32_t new_pos = handle->dptr + offset;
 
-    FRESULT error = f_dir_sdi(handle, new_pos);
+    FRESULT error = f_dir_sdi(handle, offset * 32);
 
     if (error != FR_OK) {
         return error;
@@ -333,7 +331,7 @@ kelp_error_t kelp_fatfs_dir_seek(kelp_fs_mount_t* mount, void* dir_handle, int32
 kelp_error_t kelp_fatfs_dir_tell(kelp_fs_mount_t* mount, void* dir_handle, int32_t *pos) {
     DIR* handle = dir_handle;
     if (!dir_handle) return KELP_NO_EXIST;
-    *pos = handle->dptr;
+    *pos = handle->dptr / 32;
     return KELP_OK;
 }
 
@@ -343,28 +341,28 @@ const struct kelp_fs_backend_plugin kelp_fatfs_plugin = {
     .mount = kelp_fatfs_mount,
     .unmount = kelp_fatfs_unmount,
     .stat = kelp_fatfs_stat,
-    // .rename = kelp_fatfs_rename,
-    // .remove = kelp_fatfs_remove,
-    //
-    // /* File ops */
-    // .file_open = kelp_fatfs_file_open,
-    // .file_close = kelp_fatfs_file_close,
-    // .file_read = kelp_fatfs_file_read,
-    // .file_write = kelp_fatfs_file_write,
-    // .file_seek = kelp_fatfs_file_seek,
-    // .file_tell = kelp_fatfs_file_tell,
-    // .file_size = kelp_fatfs_file_size,
-    // .file_flush = kelp_fatfs_file_flush,
-    // .file_truncate = kelp_fatfs_file_truncate,
-    //
-    // /* Directory ops */
-    // .dir_mkdir = kelp_fatfs_dir_mkdir,
-    // .dir_open = kelp_fatfs_dir_open,
-    // .dir_close = kelp_fatfs_dir_close,
-    // .dir_read = kelp_fatfs_dir_read,
-    // .dir_rewind = kelp_fatfs_dir_rewind,
-    // .dir_seek = kelp_fatfs_dir_seek,
-    // .dir_tell = kelp_fatfs_dir_tell,
+    .rename = kelp_fatfs_rename,
+    .remove = kelp_fatfs_remove,
+    
+    /* File ops */
+    .file_open = kelp_fatfs_file_open,
+    .file_close = kelp_fatfs_file_close,
+    .file_read = kelp_fatfs_file_read,
+    .file_write = kelp_fatfs_file_write,
+    .file_seek = kelp_fatfs_file_seek,
+    .file_tell = kelp_fatfs_file_tell,
+    .file_size = kelp_fatfs_file_size,
+    .file_flush = kelp_fatfs_file_flush,
+    .file_truncate = kelp_fatfs_file_truncate,
+    
+    /* Directory ops */
+    .dir_mkdir = kelp_fatfs_dir_mkdir,
+    .dir_open = kelp_fatfs_dir_open,
+    .dir_close = kelp_fatfs_dir_close,
+    .dir_read = kelp_fatfs_dir_read,
+    .dir_rewind = kelp_fatfs_dir_rewind,
+    .dir_seek = kelp_fatfs_dir_seek,
+    .dir_tell = kelp_fatfs_dir_tell,
 
     .max_name_len = FF_MAX_LFN,
     .flags = 0,
