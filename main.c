@@ -616,7 +616,7 @@ static void test_dir_opendir_readdir(void) {
     kelp_fs_dirent_t entry;
     int entry_count = 0;
     err = kelp_fs_dir_open("/0/", &dir_handle);
-    if (err == KELP_OK) { PASS(); } else { FAIL("opendir failed"); return; }
+    if (err == KELP_OK) { PASS(); } else { FAIL("dir_open failed"); return; }
     do {
         err = kelp_fs_dir_read(dir_handle, &entry);
         if (err == KELP_OK) {
@@ -627,7 +627,7 @@ static void test_dir_opendir_readdir(void) {
     printf("  Total entries: %d\n", entry_count);
     if (entry_count > 0) { PASS(); } else { FAIL("directory should have entries"); }
     err = kelp_fs_dir_close(dir_handle);
-    if (err == KELP_OK) { PASS(); } else { FAIL("closedir failed"); }
+    if (err == KELP_OK) { PASS(); } else { FAIL("dir_close failed"); }
 }
 
 static void test_dir_rewinddir(void) {
@@ -637,17 +637,17 @@ static void test_dir_rewinddir(void) {
     kelp_fs_dirent_t entry;
     int first_count = 0, second_count = 0;
     err = kelp_fs_dir_open("/0/", &dir_handle);
-    if (err != KELP_OK) { FAIL("opendir for rewind test failed"); return; }
+    if (err != KELP_OK) { FAIL("dir_open for rewind test failed"); return; }
     while (kelp_fs_dir_read(dir_handle, &entry) == KELP_OK) { first_count++; }
     err = kelp_fs_dir_rewind(dir_handle);
-    if (err == KELP_OK) { PASS(); } else { FAIL("rewinddir failed"); }
+    if (err == KELP_OK) { PASS(); } else { FAIL("dir_rewind failed"); }
     while (kelp_fs_dir_read(dir_handle, &entry) == KELP_OK) { second_count++; }
     if (first_count == second_count) {
         printf("  Both passes: %d entries\n", first_count);
         PASS();
     } else { FAIL("entry counts don't match after rewind"); }
     err = kelp_fs_dir_close(dir_handle);
-    if (err == KELP_OK) { PASS(); } else { FAIL("closedir after rewind test failed"); }
+    if (err == KELP_OK) { PASS(); } else { FAIL("dir_close after rewind test failed"); }
 }
 
 static void test_dir_seek_tell(void) {
@@ -656,11 +656,12 @@ static void test_dir_seek_tell(void) {
     kelp_error_t err;
     kelp_fs_dirent_t entry;
     int32_t pos;
+    int32_t saved_pos_end;
     int32_t saved_pos;
     int entries_before = 0;
 
     err = kelp_fs_dir_open("/0/", &dir_handle);
-    if (err != KELP_OK) { FAIL("opendir failed"); return; }
+    if (err != KELP_OK) { FAIL("dir_open failed"); return; }
 
     // Get current position
     err = kelp_fs_dir_tell(dir_handle, &pos);
@@ -677,6 +678,7 @@ static void test_dir_seek_tell(void) {
 
     // Get current position
     err = kelp_fs_dir_tell(dir_handle, &pos);
+    saved_pos_end = pos;
     if (err == KELP_OK) {
         printf("  Position after reading %d entries: %d\n", entries_before, pos);
         PASS();
@@ -699,8 +701,18 @@ static void test_dir_seek_tell(void) {
         printf("(old: %d, new: %d)\n", entries_before, entries_after);
     }
 
+    // seeking to end and checking there are still none left to read
+    err = kelp_fs_dir_seek(dir_handle, saved_pos_end);
+    if (err != KELP_OK) { FAIL("dir_seek failed"); }
+
+    err = kelp_fs_dir_read(dir_handle, &entry);
+    if (err == KELP_OK) { FAIL(); } else { FAIL("should not be able to read at end of dir"); }
+
+    // we expect and want this error, fail if it is another error
+    if (err == KELP_NO_EXIST) { PASS(); } else { FAIL("dir_seek failed"); }
+
     err = kelp_fs_dir_close(dir_handle);
-    if (err == KELP_OK) { PASS(); } else { FAIL("closedir failed"); }
+    if (err == KELP_OK) { PASS(); } else { FAIL("dir_close failed"); }
 }
 
 static void test_file_remove(void) {

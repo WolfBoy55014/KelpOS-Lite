@@ -70,26 +70,33 @@ kelp_error_t kelp_fatfs_stat(kelp_fs_mount_t* mount, const char* path,
     FATFS* fatfs = mount->context;
     FILINFO info;
 
-    FRESULT error = f_stat(fatfs, path, &info);
-    if (error != FR_OK) {
-        printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error; // TODO: Make error code conversions
-    }
-
-    if (info.fattrib & AM_DIR) {
+    if (strcmp(path, "/") == 0) {
+        out->size = 0;
         out->type = FS_DT_DIR;
+        out->name[0] = '\0';
+        out->modified = 0;
     } else {
-        out->type = FS_DT_FILE;
+        FRESULT error = f_stat(fatfs, path, &info);
+        if (error != FR_OK) {
+            printf("FATFS Error %d at line %d\n", error, __LINE__);
+            return error; // TODO: Make error code conversions
+        }
+
+        if (info.fattrib & AM_DIR) {
+            out->type = FS_DT_DIR;
+        } else {
+            out->type = FS_DT_FILE;
+        }
+
+        out->size = info.fsize;
+        out->modified = 0;
+
+        if (strlen(info.fname) >= FILE_SERVICE_MAX_NAME) {
+            return KELP_TOO_BIG;
+        }
+
+        strncpy(out->name, info.fname, FILE_SERVICE_MAX_NAME);
     }
-
-    out->size = info.fsize;
-    out->modified = 0;
-
-    if (strlen(info.fname) >= FILE_SERVICE_MAX_NAME) {
-        return KELP_TOO_BIG;
-    }
-
-    strncpy(out->name, info.fname, FILE_SERVICE_MAX_NAME);
 
     return KELP_OK;
 }
@@ -318,7 +325,7 @@ kelp_error_t kelp_fatfs_dir_rewind(kelp_fs_mount_t* mount, void* dir_handle) {
 kelp_error_t kelp_fatfs_dir_seek(kelp_fs_mount_t* mount, void* dir_handle, int32_t offset) {
     DIR* handle = dir_handle;
     if (!dir_handle) return KELP_NO_EXIST;
-
+    // TODO: Make sure this and tell work
     FRESULT error = f_dir_sdi(handle, offset * 32);
 
     if (error != FR_OK) {
