@@ -330,7 +330,7 @@ static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char *d
 
 static kelp_error_t kelp_block_handle_unmount_request(uint16_t channel_id, uint8_t device_id) {
     if (!is_valid_device_id(device_id)) {
-        return KELP_INVALID_ID;
+        return KELP_INVALID;
     }
     BLOCK_SERVICE_ACTIVITY_LED_ON;
     kelp_error_t error = kelp_block_remove_device(get_channel_partner_pid(channel_id), device_id);
@@ -356,7 +356,7 @@ static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char *da
     }
     uint8_t device_id = data[0];
     if (!is_valid_device_id(device_id)) {
-        return KELP_INVALID_ID;
+        return KELP_INVALID;
     }
 
     struct block_device_t* block_driver = &block_devices[device_id];
@@ -405,7 +405,7 @@ static kelp_error_t kelp_block_handle_write_request(uint16_t channel_id, char* d
     }
     uint8_t device_id = data[0];
     if (!is_valid_device_id(device_id)) {
-        return KELP_INVALID_ID;
+        return KELP_INVALID;
     }
 
     struct block_device_t* block_driver = &block_devices[device_id];
@@ -576,7 +576,7 @@ void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
                     case REASON_BLOCK_SIZE:
                         // get device id from channel
                         if (!is_valid_device_id(data)) {
-                            error = KELP_INVALID_ID;
+                            error = KELP_INVALID;
                         } else if (block_devices[data].driver_pid == 0) {
                             error = KELP_NO_EXIST;
                         } else {
@@ -587,7 +587,7 @@ void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
                     case REASON_BLOCK_COUNT:
                         // get device id from channel
                         if (!is_valid_device_id(data)) {
-                            error = KELP_INVALID_ID;
+                            error = KELP_INVALID;
                         } else if (block_devices[data].driver_pid == 0) {
                             error = KELP_NO_EXIST;
                         } else {

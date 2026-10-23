@@ -74,7 +74,7 @@ static kelp_error_t kelp_sd_handle_read_request(uint16_t channel_id, char *data,
     uint8_t sd_id;
     sd_card_t* sd_card_p = get_sd_from_request(data, &sd_id);
     if (!sd_card_p) {
-        return KELP_INVALID_ID;
+        return KELP_INVALID;
     }
 
     uint32_t start = get_uint32_be(&data[1]);
@@ -108,7 +108,7 @@ static kelp_error_t kelp_sd_handle_write_request(uint16_t channel_id, char* data
     uint8_t sd_id;
     sd_card_t* sd_card_p = get_sd_from_request(data, &sd_id);
     if (!sd_card_p) {
-        return KELP_INVALID_ID;
+        return KELP_INVALID;
     }
 
     uint32_t start = get_uint32_be(&data[1]);

@@ -706,7 +706,7 @@ static void test_dir_seek_tell(void) {
     if (err != KELP_OK) { FAIL("dir_seek failed"); }
 
     err = kelp_fs_dir_read(dir_handle, &entry);
-    if (err == KELP_OK) { FAIL(); } else { FAIL("should not be able to read at end of dir"); }
+    if (err == KELP_OK) { FAIL("should not be able to read at end of dir"); } else { PASS(); }
 
     // we expect and want this error, fail if it is another error
     if (err == KELP_NO_EXIST) { PASS(); } else { FAIL("dir_seek failed"); }

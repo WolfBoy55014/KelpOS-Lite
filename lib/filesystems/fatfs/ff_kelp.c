@@ -12,6 +12,46 @@
 #include "ffconf.h"
 #include "pico/types.h"
 
+static kelp_error_t FRESULT_to_kelp_error(FRESULT error) {
+    switch (error) {
+        case FR_OK:
+            return KELP_OK;
+        case FR_DISK_ERR:
+            return KELP_IO;
+        case FR_INT_ERR:
+        case FR_INVALID_PARAMETER:
+            return KELP_PROTOCOL;
+        case FR_NOT_READY:
+            return KELP_BUSY;
+        case FR_NO_FILE:
+        case FR_NO_PATH:
+            return KELP_NO_EXIST;
+        case FR_INVALID_NAME:
+        case FR_INVALID_OBJECT:
+        case FR_INVALID_DRIVE:
+            return KELP_INVALID;
+        case FR_DENIED:
+            return KELP_DENIED;
+        case FR_EXIST:
+            return KELP_EXISTS;
+        case FR_WRITE_PROTECTED:
+            return KELP_PROTECTED;
+        case FR_NO_FILESYSTEM:
+        case FR_MKFS_ABORTED:
+            return KELP_CORRUPT;
+        case FR_TIMEOUT:
+            return KELP_TIMEOUT;
+        case FR_LOCKED:
+            return KELP_LOCKED;
+        case FR_NOT_ENOUGH_CORE:
+            return KELP_MEMORY;
+        case FR_TOO_MANY_OPEN_FILES:
+            return KELP_NONE_FREE;
+        default:
+            return KELP_ERROR;
+    }
+}
+
 static int translate_flags(uint32_t flags) {
     int ff_flags = 0;
     if (flags & FS_O_RDONLY)  ff_flags |= FA_READ;
@@ -79,7 +119,7 @@ kelp_error_t kelp_fatfs_stat(kelp_fs_mount_t* mount, const char* path,
         FRESULT error = f_stat(fatfs, path, &info);
         if (error != FR_OK) {
             printf("FATFS Error %d at line %d\n", error, __LINE__);
-            return error; // TODO: Make error code conversions
+            return FRESULT_to_kelp_error(error); // TODO: Make error code conversions
         }
 
         if (info.fattrib & AM_DIR) {
@@ -106,7 +146,7 @@ kelp_error_t kelp_fatfs_rename(kelp_fs_mount_t* mount, const char* old_path, con
     FRESULT error = f_rename(fatfs, old_path, new_path);
     if (error != FR_OK) {
         printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
     return KELP_OK;
 }
@@ -116,7 +156,7 @@ kelp_error_t kelp_fatfs_remove(kelp_fs_mount_t* mount, const char* path) {
     FRESULT error = f_unlink(fatfs, path);
     if (error != FR_OK) {
         printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
     return KELP_OK;
 }
@@ -137,7 +177,7 @@ kelp_error_t kelp_fatfs_file_open(kelp_fs_mount_t* mount, const char* path,
     if (error != FR_OK) {
         printf("FATFS Error %d at line %d\n", error, __LINE__);
         free(file);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
 
     *handle = file;
@@ -148,7 +188,7 @@ kelp_error_t kelp_fatfs_file_close(kelp_fs_mount_t* mount, void* handle) {
     FRESULT error = f_close(handle);
     if (error != FR_OK) {
         printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
     free(handle);
     return KELP_OK;
@@ -160,7 +200,7 @@ kelp_error_t kelp_fatfs_file_read(kelp_fs_mount_t* mount, void* handle, uint8_t*
     FRESULT error = f_read(handle, buf, len, &br);
     if (error != FR_OK) {
         printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
 
     *bytes_read = (uint32_t)br;
@@ -173,7 +213,7 @@ kelp_error_t kelp_fatfs_file_write(kelp_fs_mount_t* mount, void* handle, const u
     FRESULT error = f_write(handle, buf, len, &bw);
     if (error != FR_OK) {
         printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
 
     *bytes_written = (uint32_t)bw;
@@ -190,7 +230,7 @@ kelp_error_t kelp_fatfs_file_seek(kelp_fs_mount_t* mount, void* handle, int32_t 
             error = f_lseek(handle, offset);
             break;
         case FS_SEEK_CUR:
-            if (handle == NULL) return KELP_INVALID_ID;
+            if (handle == NULL) return KELP_INVALID;
             FSIZE_t current_pos = f_tell((FIL*)handle);
             if (((int32_t)current_pos + offset) < 0) {
                 return KELP_PROTOCOL;
@@ -198,7 +238,7 @@ kelp_error_t kelp_fatfs_file_seek(kelp_fs_mount_t* mount, void* handle, int32_t 
             error = f_lseek(handle, current_pos + offset);
             break;
         case FS_SEEK_END:
-            if (handle == NULL) return KELP_INVALID_ID;
+            if (handle == NULL) return KELP_INVALID;
             FSIZE_t size = f_size((FIL*)handle);
             if (((int32_t)size + offset) < 0) {
                 return KELP_PROTOCOL;
@@ -209,14 +249,14 @@ kelp_error_t kelp_fatfs_file_seek(kelp_fs_mount_t* mount, void* handle, int32_t 
 
     if (error != FR_OK) {
         printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
 
     return KELP_OK;
 }
 
 kelp_error_t kelp_fatfs_file_tell(kelp_fs_mount_t* mount, void* handle, uint32_t* pos) {
-    if (handle == NULL) return KELP_INVALID_ID;
+    if (handle == NULL) return KELP_INVALID;
     FSIZE_t current_pos = f_tell((FIL*)handle);
 
     *pos = (uint32_t)current_pos;
@@ -224,7 +264,7 @@ kelp_error_t kelp_fatfs_file_tell(kelp_fs_mount_t* mount, void* handle, uint32_t
 }
 
 kelp_error_t kelp_fatfs_file_size(kelp_fs_mount_t* mount, void* handle, uint32_t* size) {
-    if (handle == NULL) return KELP_INVALID_ID;
+    if (handle == NULL) return KELP_INVALID;
     FSIZE_t file_size = f_size((FIL*)handle);
 
     *size = (uint32_t)file_size;
@@ -235,7 +275,7 @@ kelp_error_t kelp_fatfs_file_flush(kelp_fs_mount_t* mount, void* handle) {
     FRESULT error = f_sync(handle);
     if (error != FR_OK) {
         printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
     return KELP_OK;
 }
@@ -246,13 +286,13 @@ kelp_error_t kelp_fatfs_file_truncate(kelp_fs_mount_t* mount, void* handle, uint
     FRESULT error = f_lseek(handle, size);
     if (error != FR_OK) {
         printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
     error = f_truncate(handle);
     if (error != FR_OK) {
         f_lseek(handle, current_pos);
         printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
     f_lseek(handle, current_pos);
     return KELP_OK;
@@ -263,7 +303,7 @@ kelp_error_t kelp_fatfs_dir_mkdir(kelp_fs_mount_t* mount, const char* path) {
     FRESULT error = f_mkdir(fatfs, path);
     if (error != FR_OK) {
         printf("FATFS Error %d at line %d\n", error, __LINE__);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
     return KELP_OK;
 }
@@ -278,7 +318,7 @@ kelp_error_t kelp_fatfs_dir_open(kelp_fs_mount_t* mount, const char* path, void*
     FRESULT error = f_opendir(fatfs, dir, path);
     if (error != FR_OK) {
         free(dir);
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
 
     *dir_handle = dir;
@@ -288,7 +328,7 @@ kelp_error_t kelp_fatfs_dir_open(kelp_fs_mount_t* mount, const char* path, void*
 kelp_error_t kelp_fatfs_dir_close(kelp_fs_mount_t* mount, void* dir_handle) {
     FRESULT error = f_closedir(dir_handle);
     if (error != FR_OK) {
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
     free(dir_handle);
     return KELP_OK;
@@ -298,7 +338,7 @@ kelp_error_t kelp_fatfs_dir_read(kelp_fs_mount_t* mount, void* dir_handle, kelp_
     FILINFO info;
     FRESULT error = f_readdir(dir_handle, &info);
     if (error != FR_OK) {
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
 
     if (info.fname[0] == '\0') {
@@ -317,7 +357,7 @@ kelp_error_t kelp_fatfs_dir_read(kelp_fs_mount_t* mount, void* dir_handle, kelp_
 kelp_error_t kelp_fatfs_dir_rewind(kelp_fs_mount_t* mount, void* dir_handle) {
     FRESULT error = f_rewinddir(dir_handle);
     if (error != FR_OK) {
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
     return KELP_OK;
 }
@@ -325,11 +365,11 @@ kelp_error_t kelp_fatfs_dir_rewind(kelp_fs_mount_t* mount, void* dir_handle) {
 kelp_error_t kelp_fatfs_dir_seek(kelp_fs_mount_t* mount, void* dir_handle, int32_t offset) {
     DIR* handle = dir_handle;
     if (!dir_handle) return KELP_NO_EXIST;
-    // TODO: Make sure this and tell work
+    // TODO: Make sure this and tell work (I think it does)
     FRESULT error = f_dir_sdi(handle, offset * 32);
 
     if (error != FR_OK) {
-        return error;
+        return FRESULT_to_kelp_error(error);
     }
 
     return KELP_OK;

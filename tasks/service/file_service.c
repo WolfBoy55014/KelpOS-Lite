@@ -2,6 +2,8 @@
 // Created by wolfboy on 7/18/2026.
 //
 
+// TODO: Add filesystem functions such as formatting and getting the remaining space
+
 #include "file_service.h"
 
 #include <stdio.h>

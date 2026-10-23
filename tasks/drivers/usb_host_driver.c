@@ -83,11 +83,11 @@ static kelp_error_t kelp_msc_handle_read_request(uint16_t channel_id, char *data
     }
     uint8_t device_id = data[0];
     if (device_id >= BLOCK_SERVICE_MAX_DEVICES) {
-        return KELP_INVALID_ID;
+        return KELP_INVALID;
     }
     int16_t msc_id = device_id_2_msc_id[device_id];
     if (msc_id < 0 || msc_id >= USB_MSC_MAX_DEVICES) {
-        return KELP_INVALID_ID;
+        return KELP_INVALID;
     }
 
     if (inflight_requests[msc_id].state != MSC_REQ_IDLE) {
@@ -134,11 +134,11 @@ static kelp_error_t kelp_msc_handle_write_request(uint16_t channel_id, char* dat
     }
     uint8_t device_id = data[0];
     if (device_id >= BLOCK_SERVICE_MAX_DEVICES) {
-        return KELP_INVALID_ID;
+        return KELP_INVALID;
     }
     int16_t msc_id = device_id_2_msc_id[device_id];
     if (msc_id < 0 || msc_id >= USB_MSC_MAX_DEVICES) {
-        return KELP_INVALID_ID;
+        return KELP_INVALID;
     }
 
     if (inflight_requests[msc_id].state != MSC_REQ_IDLE) {
