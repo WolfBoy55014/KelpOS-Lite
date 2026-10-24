@@ -119,7 +119,7 @@ kelp_error_t kelp_fatfs_stat(kelp_fs_mount_t* mount, const char* path,
         FRESULT error = f_stat(fatfs, path, &info);
         if (error != FR_OK) {
             printf("FATFS Error %d at line %d\n", error, __LINE__);
-            return FRESULT_to_kelp_error(error); // TODO: Make error code conversions
+            return FRESULT_to_kelp_error(error);
         }
 
         if (info.fattrib & AM_DIR) {

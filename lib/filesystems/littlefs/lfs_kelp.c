@@ -319,7 +319,15 @@ kelp_error_t kelp_lfsv2_stat(kelp_fs_mount_t* mount, const char* path,
 
 kelp_error_t kelp_lfsv2_rename(kelp_fs_mount_t* mount, const char* old_path, const char* new_path) {
     struct lfs* lfs = mount->context;
-    int error = lfs_rename(lfs, old_path, new_path);
+
+    // check if the new path already exists
+    struct lfs_info info;
+    int error = lfs_stat(lfs, new_path, &info);
+    if (error == 0) {
+        return KELP_EXISTS; // destination file already exists
+    }
+
+    error = lfs_rename(lfs, old_path, new_path);
     if (error < 0) {
         printf("LittleFS V2 Error %d at line %d\n", error, __LINE__);
         return error;
