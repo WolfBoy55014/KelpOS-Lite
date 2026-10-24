@@ -237,33 +237,25 @@ kelp_error_t kelp_fatfs_file_write(kelp_fs_mount_t* mount, void* handle, const u
 
 kelp_error_t kelp_fatfs_file_seek(kelp_fs_mount_t* mount, void* handle, int32_t offset, kelp_fs_seek_t whence) {
     FRESULT error = FR_OK;
-    FSIZE_t new_pos = 0;
+    int64_t new_pos = 0;
+    if (handle == NULL) return KELP_INVALID;
+
     switch (whence) {
         case FS_SEEK_SET:
-            if (offset < 0) {
-                return KELP_PROTOCOL;
-            }
             error = offset;
             break;
         case FS_SEEK_CUR:
-            if (handle == NULL) return KELP_INVALID;
             FSIZE_t current_pos = f_tell((FIL*)handle);
-            if (((int32_t)current_pos + offset) < 0) {
-                return KELP_PROTOCOL;
-            }
             new_pos = current_pos + offset;
             break;
         case FS_SEEK_END:
-            if (handle == NULL) return KELP_INVALID;
-            FSIZE_t end = f_size((FIL*)handle) - 1;
-            if (((int32_t)end + offset) < 0) {
-                return KELP_PROTOCOL;
-            }
+            FSIZE_t end = f_size((FIL*)handle);
             new_pos = end + offset;
             break;
     }
 
-    if (new_pos >= f_size((FIL*)handle)) {
+    if ((new_pos >= f_size((FIL*)handle)) || (new_pos < 0)) {
+        printf("FATFS Error %d at line %d\n", KELP_INVALID, __LINE__);
         return KELP_INVALID;
     }
 
@@ -323,7 +315,7 @@ kelp_error_t kelp_fatfs_file_truncate(kelp_fs_mount_t* mount, void* handle, uint
         }
     }
 
-    f_lseek(handle, (current_pos >= size) ? size - 1 : current_pos); // snap pointer back to file if outside
+    f_lseek(handle, (current_pos >= size) ? size : current_pos); // snap pointer back to file if outside
     return KELP_OK;
 }
 
