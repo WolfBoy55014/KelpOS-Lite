@@ -209,15 +209,13 @@ kelp_error_t kelp_fatfs_file_read(kelp_fs_mount_t* mount, void* handle, uint8_t*
 
 kelp_error_t kelp_fatfs_file_write(kelp_fs_mount_t* mount, void* handle, const uint8_t* buf, uint32_t len,
                                    uint32_t* bytes_written) {
-    if (!handle) {
-        return KELP_INVALID;
-    }
+    if (handle == NULL) return KELP_INVALID;
 
     FRESULT error;
 
     // seek to end if appending (to mimic littlfs behavior)
     if (((FIL*)handle)->flag & 0x20) {
-        error = f_lseek(handle, f_size((FIL*)handle) - 1);
+        error = f_lseek(handle, f_size((FIL*)handle));
         if (error != FR_OK) {
             printf("FATFS Error %d at line %d\n", error, __LINE__);
             return FRESULT_to_kelp_error(error);
@@ -242,7 +240,7 @@ kelp_error_t kelp_fatfs_file_seek(kelp_fs_mount_t* mount, void* handle, int32_t 
 
     switch (whence) {
         case FS_SEEK_SET:
-            error = offset;
+            new_pos = offset;
             break;
         case FS_SEEK_CUR:
             FSIZE_t current_pos = f_tell((FIL*)handle);
@@ -254,7 +252,7 @@ kelp_error_t kelp_fatfs_file_seek(kelp_fs_mount_t* mount, void* handle, int32_t 
             break;
     }
 
-    if ((new_pos >= f_size((FIL*)handle)) || (new_pos < 0)) {
+    if ((new_pos > f_size((FIL*)handle)) || (new_pos < 0)) {
         printf("FATFS Error %d at line %d\n", KELP_INVALID, __LINE__);
         return KELP_INVALID;
     }
