@@ -1,4 +1,3 @@
-add_subdirectory(null/)
 add_subdirectory(littlefs/)
 add_subdirectory(fatfs/)
 
@@ -12,6 +11,5 @@ add_library(lib_filesystems INTERFACE)
 target_link_libraries(lib_filesystems INTERFACE
         fatfs
         littlefs
-        nullfs
         pico_stdlib
 )

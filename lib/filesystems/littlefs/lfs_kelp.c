@@ -317,6 +317,19 @@ kelp_error_t kelp_lfsv2_unmount(kelp_fs_mount_t* mount) {
     return KELP_OK;
 }
 
+static int used_cb(void* data, lfs_block_t block) {
+    uint32_t* used = data;
+    *used = *used + 1;
+    return 0;
+};
+
+kelp_error_t kelp_lfsv2_used(kelp_fs_mount_t* mount, uint32_t* used) {
+    struct lfs* lfs = mount->context;
+
+    kelp_error_t error = lfs_fs_traverse(lfs, used_cb, used);
+    return error;
+}
+
 kelp_error_t kelp_lfsv2_stat(kelp_fs_mount_t* mount, const char* path,
                              kelp_fs_dirent_t* out) {
     struct lfs* lfs = mount->context;
@@ -598,6 +611,7 @@ const struct kelp_fs_backend_plugin kelp_lfsv2_plugin = {
     .probe = kelp_lfsv2_probe,
     .mount = kelp_lfsv2_mount,
     .unmount = kelp_lfsv2_unmount,
+    .used = kelp_lfsv2_used,
     .stat = kelp_lfsv2_stat,
     .rename = kelp_lfsv2_rename,
     .remove = kelp_lfsv2_remove,

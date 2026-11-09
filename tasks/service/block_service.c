@@ -19,8 +19,8 @@ static struct block_device_t block_devices[BLOCK_SERVICE_MAX_DEVICES];
 
 // Extract a 32-bit big-endian value from a buffer
 static inline uint32_t get_uint32_be(const char* data) {
-    return ((uint8_t)data[0] << 24) | ((uint8_t)data[1] << 16) |
-           ((uint8_t)data[2] << 8)  |  (uint8_t)data[3];
+    return ((uint8_t) data[0] << 24) | ((uint8_t) data[1] << 16) |
+           ((uint8_t) data[2] << 8) | (uint8_t) data[3];
 }
 
 // Pack a 32-bit value into a buffer in big-endian
@@ -133,7 +133,7 @@ kelp_error_t kelp_block_mount_device(uint8_t* device_id, uint32_t block_size, ui
         return KELP_WRONG_REASON;
     }
 
-    *device_id = (uint8_t)return_code;
+    *device_id = (uint8_t) return_code;
 
     KELP_BLOCK_CHECK_FOR_SERVICE_ERROR;
 
@@ -202,7 +202,8 @@ kelp_error_t kelp_block_get_block_count(uint8_t device_id, uint32_t* block_count
     return KELP_OK;
 }
 
-kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_read, uint32_t start, uint32_t count) {
+kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t buffer_size, uint32_t* bytes_read,
+                                   uint32_t start, uint32_t count) {
     uint32_t driver_pid = kelp_block_get_driver_pid(device_id);
     if (driver_pid == 0) {
         driver_pid = BLOCK_SERVICE_PID;
@@ -234,7 +235,8 @@ kelp_error_t kelp_block_read_bytes(uint8_t device_id, uint8_t* buffer, uint32_t 
     return KELP_OK;
 }
 
-kelp_error_t kelp_block_write_bytes(uint8_t device_id, const uint8_t* buffer, uint32_t buffer_size, uint32_t *bytes_written, uint32_t start, uint32_t count) {
+kelp_error_t kelp_block_write_bytes(uint8_t device_id, const uint8_t* buffer, uint32_t buffer_size,
+                                    uint32_t* bytes_written, uint32_t start, uint32_t count) {
     uint32_t driver_pid = kelp_block_get_driver_pid(device_id);
     if (driver_pid == 0) {
         driver_pid = BLOCK_SERVICE_PID;
@@ -310,7 +312,7 @@ static kelp_error_t kelp_block_remove_device(uint32_t pid, uint8_t device_id) {
     return KELP_NO_TASK;
 }
 
-static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char *data, uint16_t size) {
+static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char* data, uint16_t size) {
     if (size != 8) {
         return KELP_PROTOCOL;
     }
@@ -318,7 +320,8 @@ static kelp_error_t kelp_block_handle_mount_request(uint16_t channel_id, char *d
     uint32_t block_count = get_uint32_be(&data[4]);
 
     uint8_t device_id = 0;
-    kelp_error_t error = kelp_block_add_device(&device_id, get_channel_partner_pid(channel_id), block_size, block_count);
+    kelp_error_t error = kelp_block_add_device(&device_id, get_channel_partner_pid(channel_id), block_size,
+                                               block_count);
     KELP_RETURN_ON_ERROR(error);
 
     BLOCK_SERVICE_ACTIVITY_LED_ON;
@@ -350,7 +353,7 @@ static kelp_error_t kelp_block_handle_driver_pid_request(uint16_t channel_id, ui
     return com_send_uint32_blocking(channel_id, driver_pid, REASON_BLOCK_GET_DRIVER_PID);
 }
 
-static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char *data, uint16_t size) {
+static kelp_error_t kelp_block_handle_read_request(uint16_t channel_id, char* data, uint16_t size) {
     if (size != 9) {
         return KELP_PROTOCOL;
     }
@@ -516,88 +519,91 @@ void kelp_task_block_service(uint32_t pid, uint32_t* signals, char* args) {
                 }
 
                 switch (content_type) {
+                    case COM_TYPE_ARRAY: {
+                        // get the reason
+                        uint16_t reason = 0;
 
-                case COM_TYPE_ARRAY: {
-                    // get the reason
-                    uint16_t reason = 0;
+                        char data[CHANNEL_SIZE];
+                        uint16_t size;
 
-                    char data[CHANNEL_SIZE];
-                    uint16_t size;
-
-                    error = com_get_char_array_fast(channel_id, &data, &size, &reason);
-                    if (error != KELP_OK) {
-                        continue;
-                    }
-
-                    // do they want to mount a device?
-                    switch (reason) {
-                    case REASON_BLOCK_MOUNT:
-                        // attempt to mount it
-                        error = kelp_block_handle_mount_request(channel_id, data, size);
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    case REASON_BLOCK_READ_BYTES:
-                        // send the requested bytes
-                        error = kelp_block_handle_read_request(channel_id, data, size);
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    case REASON_BLOCK_WRITE_BYTES:
-                        // send the requested bytes
-                        error = kelp_block_handle_write_request(channel_id, data, size);
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    default: break;
-                    }
-                } break;
-
-                case COM_TYPE_UINT32: {
-                    // get the reason
-                    uint16_t reason = 0;
-
-                    uint32_t data;
-
-                    error = com_get_uint32(channel_id, &data, &reason);
-                    if (error != KELP_OK) {
-                        continue;
-                    }
-
-                    // do they want to get the driver pid?
-                    switch (reason) {
-                    case REASON_BLOCK_GET_DRIVER_PID:
-                        // get device id from channel
-                        error = kelp_block_handle_driver_pid_request(channel_id, data);
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    case REASON_BLOCK_UNMOUNT:
-                        // get device id from channel
-                        error = kelp_block_handle_unmount_request(channel_id, data);
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    case REASON_BLOCK_SIZE:
-                        // get device id from channel
-                        if (!is_valid_device_id(data)) {
-                            error = KELP_INVALID;
-                        } else if (block_devices[data].driver_pid == 0) {
-                            error = KELP_NO_EXIST;
-                        } else {
-                            error = com_send_uint32_blocking(channel_id, block_devices[data].block_size, REASON_BLOCK_SIZE);
+                        error = com_get_char_array_fast(channel_id, &data, &size, &reason);
+                        if (error != KELP_OK) {
+                            continue;
                         }
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    case REASON_BLOCK_COUNT:
-                        // get device id from channel
-                        if (!is_valid_device_id(data)) {
-                            error = KELP_INVALID;
-                        } else if (block_devices[data].driver_pid == 0) {
-                            error = KELP_NO_EXIST;
-                        } else {
-                            error = com_send_uint32_blocking(channel_id, block_devices[data].block_count, REASON_BLOCK_COUNT);
+
+                        // do they want to mount a device?
+                        switch (reason) {
+                            case REASON_BLOCK_MOUNT:
+                                // attempt to mount it
+                                error = kelp_block_handle_mount_request(channel_id, data, size);
+                                com_send_error_blocking(channel_id, error);
+                                break;
+                            case REASON_BLOCK_READ_BYTES:
+                                // send the requested bytes
+                                error = kelp_block_handle_read_request(channel_id, data, size);
+                                com_send_error_blocking(channel_id, error);
+                                break;
+                            case REASON_BLOCK_WRITE_BYTES:
+                                // send the requested bytes
+                                error = kelp_block_handle_write_request(channel_id, data, size);
+                                com_send_error_blocking(channel_id, error);
+                                break;
+                            default: break;
                         }
-                        com_send_error_blocking(channel_id, error);
-                        break;
-                    default: break;
                     }
-                } break;
+                    break;
+
+                    case COM_TYPE_UINT32: {
+                        // get the reason
+                        uint16_t reason = 0;
+
+                        uint32_t data;
+
+                        error = com_get_uint32(channel_id, &data, &reason);
+                        if (error != KELP_OK) {
+                            continue;
+                        }
+
+                        // do they want to get the driver pid?
+                        switch (reason) {
+                            case REASON_BLOCK_GET_DRIVER_PID:
+                                // get device id from channel
+                                error = kelp_block_handle_driver_pid_request(channel_id, data);
+                                com_send_error_blocking(channel_id, error);
+                                break;
+                            case REASON_BLOCK_UNMOUNT:
+                                // get device id from channel
+                                error = kelp_block_handle_unmount_request(channel_id, data);
+                                com_send_error_blocking(channel_id, error);
+                                break;
+                            case REASON_BLOCK_SIZE:
+                                // get device id from channel
+                                if (!is_valid_device_id(data)) {
+                                    error = KELP_INVALID;
+                                } else if (block_devices[data].driver_pid == 0) {
+                                    error = KELP_NO_EXIST;
+                                } else {
+                                    error = com_send_uint32_blocking(channel_id, block_devices[data].block_size,
+                                                                     REASON_BLOCK_SIZE);
+                                }
+                                com_send_error_blocking(channel_id, error);
+                                break;
+                            case REASON_BLOCK_COUNT:
+                                // get device id from channel
+                                if (!is_valid_device_id(data)) {
+                                    error = KELP_INVALID;
+                                } else if (block_devices[data].driver_pid == 0) {
+                                    error = KELP_NO_EXIST;
+                                } else {
+                                    error = com_send_uint32_blocking(channel_id, block_devices[data].block_count,
+                                                                     REASON_BLOCK_COUNT);
+                                }
+                                com_send_error_blocking(channel_id, error);
+                                break;
+                            default: break;
+                        }
+                    }
+                    break;
                 }
             }
         }

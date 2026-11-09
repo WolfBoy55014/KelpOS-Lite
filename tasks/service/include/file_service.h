@@ -21,6 +21,7 @@
 /* Path-based operations (no handle) */
 #define REASON_FILE_CONNECT 34678
 #define REASON_FILE_REMOVE 37590
+#define REASON_FILE_USED 40872
 #define REASON_FILE_MOUNT 25678
 #define REASON_FILE_UNMOUNT 7890
 #define REASON_FILE_STAT 23597
@@ -106,28 +107,32 @@ typedef struct kelp_fs_backend_plugin kelp_fs_backend_plugin_t;
 typedef bool (*kelp_fs_probe_fn)(uint8_t device_id);
 
 /* Mount: initialize and mount on a slot. */
-typedef void* (*kelp_fs_mount_fn)(uint8_t device_id);
+typedef void * (*kelp_fs_mount_fn)(uint8_t device_id);
 
 /* Unmount: clean up and unmount. */
 typedef kelp_error_t (*kelp_fs_unmount_fn)(kelp_fs_mount_t* mount);
+
+/* Used: get numbers of blocked used. */
+typedef kelp_error_t (*kelp_fs_used_fn)(kelp_fs_mount_t* mount, uint32_t* used);
 
 /* === File operations === */
 
 /* Open: open a file on a mounted slot. Returns handle. */
 typedef kelp_error_t (*kelp_fs_file_open_fn)(kelp_fs_mount_t* mount, const char* path,
-                                      uint32_t flags, void** handle);
+                                             uint32_t flags, void** handle);
 
 /* Close: close a file handle. */
 typedef kelp_error_t (*kelp_fs_file_close_fn)(kelp_fs_mount_t* mount, void* handle);
 
 /* Read/Write: transfer data through a file handle. */
 typedef kelp_error_t (*kelp_fs_file_read_fn)(kelp_fs_mount_t* mount, void* handle, uint8_t* buf, uint32_t len,
-                                      uint32_t* bytes_read);
+                                             uint32_t* bytes_read);
 typedef kelp_error_t (*kelp_fs_file_write_fn)(kelp_fs_mount_t* mount, void* handle, const uint8_t* buf, uint32_t len,
-                                      uint32_t* bytes_written);
+                                              uint32_t* bytes_written);
 
 /* Seek/Tell/Size/Flush: file position and metadata. */
-typedef kelp_error_t (*kelp_fs_file_seek_fn)(kelp_fs_mount_t* mount, void* handle, int32_t offset, kelp_fs_seek_t whence);
+typedef kelp_error_t (*kelp_fs_file_seek_fn)(kelp_fs_mount_t* mount, void* handle, int32_t offset,
+                                             kelp_fs_seek_t whence);
 typedef kelp_error_t (*kelp_fs_file_tell_fn)(kelp_fs_mount_t* mount, void* handle, uint32_t* pos);
 typedef kelp_error_t (*kelp_fs_file_size_fn)(kelp_fs_mount_t* mount, void* handle, uint32_t* size);
 typedef kelp_error_t (*kelp_fs_file_flush_fn)(kelp_fs_mount_t* mount, void* handle);
@@ -140,7 +145,7 @@ typedef kelp_error_t (*kelp_fs_dir_mkdir_fn)(kelp_fs_mount_t* mount, const char*
 
 /* Open/close directory */
 typedef kelp_error_t (*kelp_fs_dir_open_fn)(kelp_fs_mount_t* mount, const char* path,
-                                       void** dir_handle);
+                                            void** dir_handle);
 typedef kelp_error_t (*kelp_fs_dir_close_fn)(kelp_fs_mount_t* mount, void* dir_handle);
 
 /* Read/rewind directory */
@@ -153,13 +158,13 @@ typedef kelp_error_t (*kelp_fs_dir_tell_fn)(kelp_fs_mount_t* mount, void* dir_ha
 
 /* Stat: get file/directory info by path. */
 typedef kelp_error_t (*kelp_fs_stat_fn)(kelp_fs_mount_t* mount, const char* path,
-                                  kelp_fs_dirent_t* out);
+                                        kelp_fs_dirent_t* out);
 
 /* Rename: rename or move a file or directory */
 typedef kelp_error_t (*kelp_fs_rename_fn)(kelp_fs_mount_t* mount, const char* old_path, const char* new_path);
 
 /* Remove: remove/delete a file or directory */
-typedef kelp_error_t (*kelp_fs_remove_fn)(kelp_fs_mount_t* mount, const char *path);
+typedef kelp_error_t (*kelp_fs_remove_fn)(kelp_fs_mount_t* mount, const char* path);
 
 /* Plugin descriptor */
 struct kelp_fs_backend_plugin {
@@ -169,6 +174,7 @@ struct kelp_fs_backend_plugin {
     kelp_fs_probe_fn     probe;
     kelp_fs_mount_fn     mount;
     kelp_fs_unmount_fn   unmount;
+    kelp_fs_used_fn      used;
     kelp_fs_stat_fn      stat;
     kelp_fs_rename_fn    rename;
     kelp_fs_remove_fn    remove;
@@ -203,7 +209,7 @@ struct kelp_fs_backend_plugin {
     uint16_t max_name_len;
 
     /* Flags */
-    uint32_t flags;  // FS_FLAG_DIR_SUPPORTED, FS_FLAG_TRIM_SUPPORTED, etc.
+    uint32_t flags; // FS_FLAG_DIR_SUPPORTED, FS_FLAG_TRIM_SUPPORTED, etc.
 };
 
 // ---------------------------+
@@ -240,6 +246,8 @@ kelp_error_t kelp_fs_device_removed(uint8_t device_id);
 kelp_error_t kelp_fs_mount(uint8_t device_id);
 
 kelp_error_t kelp_fs_unmount(uint8_t device_id);
+
+kelp_error_t kelp_fs_used(uint8_t device_id, uint32_t* blocks_free);
 
 kelp_error_t kelp_fs_stat(const char* path, kelp_fs_dirent_t* out);
 

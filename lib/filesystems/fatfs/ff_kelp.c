@@ -105,6 +105,24 @@ kelp_error_t kelp_fatfs_unmount(kelp_fs_mount_t* mount) {
     return KELP_OK;
 }
 
+kelp_error_t kelp_fatfs_used(kelp_fs_mount_t* mount, uint32_t* used) {
+    FATFS* fatfs = mount->context;
+    DWORD free_clusters;
+
+    FRESULT error = f_getfree(fatfs, &free_clusters);
+
+    if (error != FR_OK) {
+        printf("FATFS Error %d at line %d\n", error, __LINE__);
+        return FRESULT_to_kelp_error(error);
+    }
+
+    DWORD total_blocks = (fatfs->n_fatent - 2) * fatfs->csize;
+    DWORD free_blocks = free_clusters * fatfs->csize;
+
+    *used = total_blocks - free_blocks;
+    return KELP_OK;
+}
+
 kelp_error_t kelp_fatfs_stat(kelp_fs_mount_t* mount, const char* path,
                              kelp_fs_dirent_t* out) {
     FATFS* fatfs = mount->context;
@@ -406,6 +424,7 @@ const struct kelp_fs_backend_plugin kelp_fatfs_plugin = {
     .probe = kelp_fatfs_probe,
     .mount = kelp_fatfs_mount,
     .unmount = kelp_fatfs_unmount,
+    .used = kelp_fatfs_used,
     .stat = kelp_fatfs_stat,
     .rename = kelp_fatfs_rename,
     .remove = kelp_fatfs_remove,

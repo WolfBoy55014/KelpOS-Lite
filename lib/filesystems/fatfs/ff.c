@@ -4911,8 +4911,7 @@ FRESULT f_stat (
 
 FRESULT f_getfree (
 	FATFS* fs,			/* Pointer to the filesystem object */
-	DWORD* nclst,		/* Pointer to a variable to return number of free clusters */
-	FATFS** fatfs		/* Pointer to a pointer to return corresponding filesystem object */
+	DWORD* nclst 		/* Pointer to a variable to return number of free clusters */
 )
 {
 	FRESULT res;
@@ -4926,7 +4925,6 @@ FRESULT f_getfree (
 	res = mount_volume(fs, 0);
 
 	if (res == FR_OK) {
-		*fatfs = fs;				/* Return ptr to the fs object */
 		/* If free_clst is valid, return it without full FAT scan */
 		if (fs->free_clst <= fs->n_fatent - 2) {
 			*nclst = fs->free_clst;
